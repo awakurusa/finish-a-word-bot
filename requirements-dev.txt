@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8.0
+# Only needed to regenerate data/words.txt via tools/build_wordlist.py:
+english-words>=2.0
+wordfreq>=3.1

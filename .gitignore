@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# local state / user settings
+config.json
+used_words.json
+custom_words.txt
+blocklist.txt
+preview.png
