@@ -41,7 +41,7 @@ def test_pattern_blanks(db):
 
 
 def test_reliable_prefers_common_words(db):
-    sol = db.solve("th", cfg())
+    sol = db.solve("th", cfg(selection="reliable"))
     assert sol.word and sol.word.startswith("th") and sol.zipf >= 4.0
 
 
@@ -100,3 +100,21 @@ def test_custom_words_and_blocklist(tmp_path):
     block.write_text("the\n")
     db = WordDB(extra=extra, blocklist=block)
     assert "zorbleflux" in db and "the" not in db
+
+
+def test_hard_ending_prefers_rare_final_letters(db):
+    c = cfg(selection="hard_ending", min_zipf=1.5)
+    for prompt in ("qu", "bu", "ma", "co"):
+        hits = db.search(prompt, "prefix", 3, 18, 1.5)
+        best = db.solve(prompt, c).word
+        order = c.ending_priority
+        def score(w):
+            i = order.find(w[-1])
+            return len(order) - i if i >= 0 else 0
+        assert score(best) == max(score(w) for w in hits), (prompt, best)
+
+
+def test_hard_ending_examples(db):
+    c = cfg(selection="hard_ending")
+    print({p: db.solve(p, c).word for p in ("bu", "co", "qu", "st", "th", "ma", "re")})
+    assert db.solve("bu", c).word[-1] in "zxqjvkwf"

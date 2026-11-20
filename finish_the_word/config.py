@@ -35,8 +35,11 @@ class Config:
     # prefix | contains | suffix | last_letter
     # (a prompt containing "_" is always matched as a full-word pattern)
     match_mode: str = "prefix"
-    # reliable (most common first) | longest | shortest | random
-    selection: str = "reliable"
+    # hard_ending (words ending in rare letters first) | reliable (most common
+    # first) | longest | shortest | random
+    selection: str = "hard_ending"
+    # Rarest word-final letters first; used by "hard_ending".
+    ending_priority: str = "zxqjvkwfbygp"
     min_word_len: int = 3
     max_word_len: int = 18
     min_zipf: float = 1.5               # commonness floor; relaxed if no match

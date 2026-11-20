@@ -18,7 +18,9 @@ CONFUSIONS = {
     "w": "v", "y": "v", "p": "b",
 }
 MODES = ("prefix", "contains", "suffix", "last_letter")
-SELECTIONS = ("reliable", "longest", "shortest", "random")
+SELECTIONS = ("hard_ending", "reliable", "longest", "shortest", "random")
+# Rarest word-final letters first (used by the "hard_ending" selection).
+DEFAULT_ENDING_PRIORITY = "zxqjvkwfbygp"
 
 
 @dataclass
@@ -169,8 +171,23 @@ class WordDB:
             out.append(w)
         return out
 
-    def rank(self, words: list[str], selection: str = "reliable") -> list[str]:
+    def rank(
+        self,
+        words: list[str],
+        selection: str = "reliable",
+        ending_priority: str = DEFAULT_ENDING_PRIORITY,
+    ) -> list[str]:
         z = self.zipf
+        if selection == "hard_ending":
+            # Words ending in the rarest letters first (earlier in
+            # `ending_priority` = rarer = better); ties go to the most common word.
+            n = len(ending_priority)
+
+            def score(w: str) -> int:
+                i = ending_priority.find(w[-1])
+                return n - i if i >= 0 else 0
+
+            return sorted(words, key=lambda w: (-score(w), -z[w], len(w), w))
         if selection == "longest":
             return sorted(words, key=lambda w: (-len(w), -z[w], w))
         if selection == "shortest":
@@ -234,7 +251,7 @@ class WordDB:
                     text, cfg.match_mode, cfg.min_word_len, cfg.max_word_len, floor, skip
                 )
                 if hits:
-                    return self.rank(hits, cfg.selection), relaxed
+                    return self.rank(hits, cfg.selection, cfg.ending_priority), relaxed
                 if floor == 0.0:
                     break
             return [], False
