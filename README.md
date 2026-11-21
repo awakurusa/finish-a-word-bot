@@ -11,7 +11,8 @@ screen region ──► capture.py ──► ocr.py ──► dictionary.py ─�
 | Module | Job |
 | --- | --- |
 | `capture.py` | Grabs the configured region (optionally relative to the Roblox window) |
-| `ocr.py` | Preprocesses the image, runs Tesseract/EasyOCR, cleans up OCR mistakes |
+| `ocr.py` | Reads the prompt: letter tiles first (`tiles.py`), else Tesseract/EasyOCR text OCR; cleans up mistakes |
+| `tiles.py` | Finds the game's white letter tiles and identifies each letter by template matching |
 | `dictionary.py` | Matches letters against a ~215,000-word list, ranks, caches used words |
 | `typer.py` | Focuses the answer box, types the word, presses Enter |
 | `engine.py` | Ties them together; only acts when the prompt actually changes |
@@ -26,8 +27,8 @@ screen region ──► capture.py ──► ocr.py ──► dictionary.py ─�
 3. Clone and install:
 
 ```powershell
-git clone https://github.com/<your-username>/finish-the-word-bot.git
-cd finish-the-word-bot
+git clone https://github.com/awakurusa/finish-a-word-bot.git
+cd finish-a-word-bot
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -59,6 +60,22 @@ I couldn't verify exactly how the game words its prompts, so this is configurabl
 
 If the prompt contains blanks (`ap__e`, `ap--e`), it is matched as a full-word pattern where every `_` is one letter, regardless of mode.
 
+## How letters are read
+
+Finish the Word draws each letter as a separate white tile with a thin black outline. Generic text OCR is unreliable on that, so the default `reader: "auto"` does this instead:
+
+1. find the white tiles in your capture region (works across UI scales and slight blur),
+2. extract each letter's shape and compare it with `data/letter_templates.npz`, templates taken from real game screenshots (all 26 letters),
+3. fall back to Tesseract/EasyOCR text reading only if no tiles are found.
+
+In the OCR preview the second image shows the detected tiles: green box = recognised, red = unknown (treated as a blank `_`). If your game uses a different skin or font, rebuild the templates from your own screenshots of a tile row:
+
+```powershell
+python tools/build_templates.py row1.png GABCDEFGHIJKLMNOP row2.png QRSTUVWXYZ
+```
+
+(each image followed by its letters left-to-right). Set `reader` to `tiles` or `text` to force one method, and lower `tile_min_score` (default 0.75) if real letters show up red.
+
 ## Command line helpers
 
 ```powershell
@@ -77,6 +94,7 @@ Created when you first save settings from the GUI. Key options:
 | --- | --- | --- |
 | `region` | `[760,380,400,110]` | `[left, top, width, height]` in pixels |
 | `region_relative_to_window` | `false` | Measure from the Roblox window's top-left |
+| `reader` | `auto` | `auto` (letter tiles, else text OCR), `tiles`, or `text` |
 | `min_confidence` | `40` | OCR confidence (0–100) required before typing |
 | `stable_reads` | `2` | Identical consecutive reads required (rejects half-animated text) |
 | `match_mode` | `prefix` | See above |

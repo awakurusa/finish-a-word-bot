@@ -21,7 +21,11 @@ class Config:
     window_title: str = "Roblox"
 
     # ---- OCR ------------------------------------------------------------
-    ocr_backend: str = "tesseract"      # "tesseract" | "easyocr"
+    # auto = read separate letter tiles by template matching when tiles are
+    # visible, else fall back to text OCR | tiles = tiles only | text = OCR only
+    reader: str = "auto"
+    tile_min_score: float = 0.75        # template match (0-1) needed per tile
+    ocr_backend: str = "tesseract"      # "tesseract" | "easyocr" (text reader)
     tesseract_cmd: str = ""             # auto-detected on Windows if empty
     tesseract_psm: int = 7              # 7 = single line, 8 = single word
     ocr_scale: int = 3                  # upscale factor before OCR

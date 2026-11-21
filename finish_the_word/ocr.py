@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from .config import Config
+from .config import ROOT, Config
+from .tiles import TileClassifier, find_tiles
 
 BLANK_CHARS = "_-\u2013\u2014.\u2022\u25a1\u25a2?*"
 # Characters OCR commonly returns instead of letters.
@@ -91,7 +92,48 @@ class OCR:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._easy = None
+        self._tile_clf: TileClassifier | None = None
         self.last_processed: np.ndarray | None = None
+
+    # ---- tile reader ----------------------------------------------------
+    def _classifier(self) -> TileClassifier | None:
+        if self._tile_clf is None:
+            path = ROOT / "data" / "letter_templates.npz"
+            if not path.exists():
+                return None
+            self._tile_clf = TileClassifier(path)
+        return self._tile_clf
+
+    def read_tiles(self, img_bgr: np.ndarray) -> OCRResult | None:
+        """Read a row of separate letter tiles. None = no tiles in the image."""
+        clf = self._classifier()
+        if clf is None:
+            return None
+        tiles = find_tiles(img_bgr)
+        if not tiles:
+            return None
+        vis = img_bgr.copy()
+        chars, scores = [], []
+        for t in tiles:
+            ch, score = "_", 0.0
+            if t.mask is not None:
+                letter, s, _margin = clf.classify(t.mask)
+                if s >= self.cfg.tile_min_score:
+                    ch, score = letter, s
+            chars.append(ch)
+            if ch != "_":
+                scores.append(score)
+            cv2.rectangle(vis, (t.x, t.y), (t.x + t.w, t.y + t.h),
+                          (0, 200, 0) if ch != "_" else (0, 0, 255), 2)
+            cv2.putText(vis, ch.upper(), (t.x + 4, t.y + t.h - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+        if not scores:      # nothing matched a known letter -> not a tile row
+            return None
+        text = "".join(chars)
+        if not self.cfg.allow_blanks:
+            text = text.replace("_", "")
+        conf = float(np.mean(scores)) * 100.0 if scores else 0.0
+        return OCRResult(text=text, raw=text, confidence=conf, processed=vis)
 
     # ---- backends -------------------------------------------------------
     def _tesseract(self, img: np.ndarray) -> tuple[str, float]:
@@ -162,6 +204,19 @@ class OCR:
     def read(self, img_bgr: np.ndarray) -> OCRResult:
         """OCR one frame. Tries extra preprocessing variants only when the
         first attempt is not confident, which keeps the common case fast."""
+        if self.cfg.reader in ("auto", "tiles"):
+            try:
+                res = self.read_tiles(img_bgr)
+            except Exception as e:  # fall through to text OCR
+                res = None
+                if self.cfg.reader == "tiles":
+                    return OCRResult(error=f"{type(e).__name__}: {e}")
+            if res is not None:
+                self.last_processed = res.processed
+                return res
+            if self.cfg.reader == "tiles":
+                self.last_processed = None
+                return OCRResult()
         best = OCRResult()
         # A flat frame has no text; Tesseract would hallucinate letters on it.
         if float(np.std(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY))) < MIN_CONTRAST:
