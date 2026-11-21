@@ -171,3 +171,9 @@ def test_no_click_when_already_focused_or_disabled(monkeypatch):
 
 def test_default_backend_is_scancode_sendinput():
     assert Config().typing_backend == "sendinput"
+
+
+def test_backend_names_and_hold_default():
+    c = Config()
+    assert c.key_hold >= 0.04            # Roblox needs keys held across a frame
+    assert c.typing_backend in ("sendinput", "sendinput_vk", "pydirectinput", "pyautogui")

@@ -52,38 +52,56 @@ def _send(*inputs: INPUT) -> int:
     return ctypes.windll.user32.SendInput(len(inputs), arr, ctypes.sizeof(INPUT))
 
 
-def _key_event(scan: int, up: bool) -> INPUT:
-    flags = KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0)
-    return INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(0, scan, flags, 0, 0))
+def _key_event(vk: int, scan: int, up: bool, use_vk: bool) -> INPUT:
+    flags = KEYEVENTF_KEYUP if up else 0
+    if use_vk:      # virtual key + scan code (some games want both)
+        return INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(vk, scan, flags, 0, 0))
+    return INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(0, scan, flags | KEYEVENTF_SCANCODE, 0, 0))
+
+
+def is_admin() -> bool:
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
 
 
 class ScanCodeKeyboard:
-    """Same tiny interface as the other typing backends."""
+    """Same tiny interface as the other typing backends.
 
-    def __init__(self, hold: float = 0.015):
+    `hold` is how long each key stays down. Roblox samples keys once per frame,
+    so a too-short press (a few ms) is silently missed; ~50 ms is reliable.
+    """
+
+    def __init__(self, hold: float = 0.05, use_vk: bool = False):
         if not IS_WINDOWS:
             raise RuntimeError("SendInput backend is Windows-only")
         self.hold = hold
+        self.use_vk = use_vk
 
-    def _scan_for_char(self, ch: str) -> int:
+    def _codes_for_char(self, ch: str) -> tuple[int, int]:
         user32 = ctypes.windll.user32
         vk = user32.VkKeyScanW(ord(ch)) & 0xFF
-        return user32.MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)
+        return vk, user32.MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)
 
-    def _tap(self, scan: int) -> None:
-        if scan == 0:
-            raise RuntimeError("No scan code for key")
-        if not _send(_key_event(scan, False)):
-            raise RuntimeError("SendInput was blocked (is Roblox running as Administrator? "
-                               "Run this tool as Administrator too)")
+    def _tap(self, vk: int, scan: int) -> None:
+        if scan == 0 and not self.use_vk:
+            raise RuntimeError("No scan code for this key on your keyboard layout")
+        if not _send(_key_event(vk, scan, False, self.use_vk)):
+            err = ctypes.GetLastError()
+            raise RuntimeError(f"SendInput was blocked (error {err}). If Roblox runs as "
+                               "Administrator, run this tool as Administrator too")
         time.sleep(self.hold)
-        _send(_key_event(scan, True))
+        _send(_key_event(vk, scan, True, self.use_vk))
 
     def press_char(self, ch: str) -> None:
-        self._tap(self._scan_for_char(ch))
+        self._tap(*self._codes_for_char(ch))
 
     def press_enter(self) -> None:
-        self._tap(SCAN_ENTER)
+        self._tap(VK_RETURN, SCAN_ENTER)
+
+    def press_key(self, name: str) -> None:
+        raise RuntimeError(f"press_key({name!r}) is not supported by this backend; use a single character")
 
     def click(self, x: int, y: int) -> None:
         user32 = ctypes.windll.user32
@@ -92,5 +110,5 @@ class ScanCodeKeyboard:
         down = INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, 0))
         up = INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, 0))
         _send(down)
-        time.sleep(0.04)
+        time.sleep(0.05)
         _send(up)

@@ -33,8 +33,8 @@ class _PyAutoGuiKeyboard:
 
 
 class Typer:
-    """Backends: "sendinput" (default on Windows, scan codes), "pydirectinput",
-    "pyautogui"."""
+    """Backends: "sendinput" (default, hardware scan codes), "sendinput_vk"
+    (virtual key + scan code), "pydirectinput", "pyautogui"."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -43,12 +43,12 @@ class Typer:
     def _backend(self):
         if self._kb is None:
             name = self.cfg.typing_backend
-            if name == "sendinput" and not winutil.IS_WINDOWS:
+            if name in ("sendinput", "sendinput_vk") and not winutil.IS_WINDOWS:
                 name = "pyautogui"          # dev machines / CI
-            if name == "sendinput":
+            if name in ("sendinput", "sendinput_vk"):
                 from .inputsim import ScanCodeKeyboard
 
-                self._kb = ScanCodeKeyboard()
+                self._kb = ScanCodeKeyboard(self.cfg.key_hold, use_vk=(name == "sendinput_vk"))
             elif name == "pydirectinput":
                 import pydirectinput
 

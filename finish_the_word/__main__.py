@@ -24,6 +24,10 @@ def main(argv=None) -> int:
     ap.add_argument("--ocr-image", metavar="FILE", help="run OCR on an image file and print the result")
     ap.add_argument("--solve", metavar="LETTERS", help="find a word for these letters")
     ap.add_argument("--mode", choices=("prefix", "contains", "suffix", "last_letter"))
+    ap.add_argument("--test-keys", action="store_true",
+                    help="type test letters with every input method to find the one that works")
+    ap.add_argument("--window", metavar="TITLE", help="window to type into for --test-keys (e.g. Notepad)")
+    ap.add_argument("--backend", help="only test this typing backend")
     ap.add_argument("--dry-run", action="store_true", help="never press keys")
     args = ap.parse_args(argv)
 
@@ -33,6 +37,31 @@ def main(argv=None) -> int:
         cfg.match_mode = args.mode
     if args.dry_run:
         cfg.dry_run = True
+
+    if args.test_keys:
+        from .typer import Typer
+
+        if args.window:
+            cfg.window_title = args.window
+        cfg.dry_run, cfg.press_enter, cfg.input_pos, cfg.focus_key = False, False, None, ""
+        backends = [args.backend] if args.backend else [
+            "sendinput", "sendinput_vk", "pydirectinput", "pyautogui"]
+        admin = ""
+        if winutil.IS_WINDOWS:
+            from .inputsim import is_admin
+            admin = f"running as Administrator: {is_admin()}"
+        print(f"Typing test into the '{cfg.window_title}' window. {admin}")
+        print("Each method types a different letter: aaaa, bbbb, cccc, dddd.")
+        print("Starting in 5 seconds; it will bring that window to the front.")
+        time.sleep(5)
+        for letter, name in zip("abcd", backends):
+            cfg.typing_backend = name
+            res = Typer(cfg).type_word(letter * 4)
+            print(f"  {name:14} -> {res.message}")
+            time.sleep(1.2)
+        print("Whichever letters appeared in the game are the methods that work. "
+              'Set "typing_backend" in config.json to that one.')
+        return 0
 
     if args.solve:
         from .dictionary import load_db

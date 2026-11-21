@@ -89,6 +89,16 @@ While it isn't your turn the bot keeps watching but never types, and it re-arms 
 
 ## If nothing gets typed in Roblox
 
+**Run the typing test first.** It tries every input method, each typing a different letter, so you can see which one your Roblox accepts:
+
+```powershell
+.venv\Scripts\python -m finish_the_word --test-keys
+```
+
+It waits 5 seconds, brings Roblox to the front and types `aaaa` (scan codes), `bbbb` (virtual keys + scan codes), `cccc` (pydirectinput), `dddd` (pyautogui). Put Roblox somewhere the typed letters are visible (e.g. the chat box). Whichever letters appear are the methods that work; set `typing_backend` in `config.json` to that method's name (`sendinput`, `sendinput_vk`, `pydirectinput`, `pyautogui`). To check the tool itself works, run it against Notepad: `--test-keys --window Notepad`. If it works in Notepad but not Roblox, the game is rejecting that input type or is running elevated (run PowerShell as Administrator).
+
+If keys sometimes register and sometimes don't, raise `key_hold` (default `0.05`, seconds each key stays down) and `typing_delay` (default `0.04`) in `config.json`; Roblox only reads keys once per frame, so very short presses can be missed on low FPS.
+
 Look at the **Status** line in the panel after a word is chosen; it says exactly what happened.
 
 * *"Could not switch to the 'Roblox' window"*: Roblox isn't open or its window title differs; set `window_title`.
@@ -123,9 +133,10 @@ Created when you first save settings from the GUI. Key options:
 | `ending_priority` | `zxqjvkwfbygp` | Final letters ranked rarest-first for `hard_ending` |
 | `min_word_len` / `max_word_len` | `3` / `18` | Answer length limits |
 | `min_zipf` | `1.5` | Commonness floor (about 1 in 30M words); relaxed automatically if nothing matches |
-| `typing_delay` | `0.03` | Seconds between keystrokes |
+| `typing_delay` | `0.04` | Seconds between keystrokes |
 | `press_enter` | `true` | Submit with Enter |
-| `typing_backend` | `sendinput` | Hardware scan-code input (works with Roblox). Alternatives: `pydirectinput`, `pyautogui` |
+| `typing_backend` | `sendinput` | Hardware scan-code input. Alternatives: `sendinput_vk`, `pydirectinput`, `pyautogui` (find yours with `--test-keys`) |
+| `key_hold` | `0.05` | Seconds each key stays pressed; raise if letters get dropped |
 | `auto_focus_roblox` | `true` | Bring the Roblox window to the front before typing |
 | `turn_check` | `none` | `none`, `color` or `text`: how the bot knows it's your turn (see below) |
 | `turn_region` / `turn_color` / `turn_text` | | Indicator region, learned color, or keyword (e.g. `your turn`) |

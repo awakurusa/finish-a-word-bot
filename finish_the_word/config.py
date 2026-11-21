@@ -53,8 +53,11 @@ class Config:
     persist_used_words: bool = True
 
     # ---- keyboard automation --------------------------------------------
-    # "sendinput" (hardware scan codes, works with Roblox) | "pydirectinput" | "pyautogui"
+    # "sendinput" (hardware scan codes) | "sendinput_vk" (virtual key + scan code)
+    # | "pydirectinput" | "pyautogui".  Run `python -m finish_the_word --test-keys`
+    # to find which one your Roblox accepts.
     typing_backend: str = "sendinput"
+    key_hold: float = 0.05              # seconds each key stays down (Roblox needs ~50 ms)
     auto_focus_roblox: bool = True      # bring Roblox to the front before typing
     # If Windows won't switch focus, click on the Roblox window (title bar if it
     # has one, else a harmless spot) so it becomes the active window.
@@ -62,7 +65,7 @@ class Config:
     focus_click_pos: list | None = None  # [x, y] override for that click
     input_pos: list | None = None       # [x, y] of the answer box; None = skip click
     focus_key: str = ""                 # e.g. "/" to focus Roblox chat
-    typing_delay: float = 0.03          # seconds between keystrokes
+    typing_delay: float = 0.04          # seconds between keystrokes
     pre_type_delay: float = 0.08        # seconds after focusing the box
     press_enter: bool = True
     require_roblox_focus: bool = True   # refuse to type if Roblox isn't foreground
