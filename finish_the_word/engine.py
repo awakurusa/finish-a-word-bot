@@ -141,6 +141,7 @@ class Engine:
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
+            self._emit(status=f"'{self._last_typed}' seems refused; trying another word…")
             self._submit(text, now)  # same prompt still up: answer was rejected?
         # else: already answered this prompt; wait for it to change
 
@@ -152,12 +153,15 @@ class Engine:
             return
         self._emit(word=sol.word, corrected=sol.corrected, alternatives=sol.alternatives,
                    status=f"Typing '{sol.word}'…")
+        t0 = time.monotonic()
         result = self.typer.type_word(sol.word, skip=self._already_shown(sol))
+        typing_time = time.monotonic() - t0
         if result.ok:
             self._attempted.add(sol.word)
             self._last_typed = sol.word
             self.db.mark_used(sol.word)
-            self._submitted_prompt, self._submitted_at = text, now
+            # time the game's reaction from when typing FINISHED, not when it began
+            self._submitted_prompt, self._submitted_at = text, now + typing_time
         # on failure leave the prompt un-submitted so the next poll retries
         self._emit(status=result.message)
 

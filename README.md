@@ -156,8 +156,8 @@ Created when you first save settings from the GUI. Key options:
 | `turn_region` / `turn_color` / `turn_text` | | Indicator region, learned color, or keyword (e.g. `your turn`) |
 | `turn_invert` | `false` | Act when the indicator is *absent* |
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
-| `retry_after` | `3.0` | If the same prompt is still showing after this many seconds, try the next-best word |
-| `auto_ban_rejected` | `false` | If the same prompt is still up after `retry_after` seconds, assume the game rejected the word and ban it permanently |
+| `retry_after` | `1.5` | If the same prompt is still showing this many seconds after the word was typed, assume the game refused it (e.g. an opponent already used it) and try the next-best word |
+| `auto_ban_rejected` | `false` | Also ban the refused word permanently. Only for games that refuse *invalid* words; leave off if refusals are words opponents already used |
 | `hotkey` | `F8` | Global start/stop key |
 
 ## How the pieces behave

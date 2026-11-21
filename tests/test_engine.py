@@ -227,3 +227,21 @@ def test_ban_message_names_the_file_and_reports_failures(tmp_path):
     eng2, ocr2, _ = make(db2, retry_next_word=False)
     _run(eng2, ocr2, "st", 0)
     assert "could not save" in eng2.ban_last_word()
+
+
+def test_retry_clock_starts_after_typing_finishes(db):
+    import time
+
+    class SlowTyper(FakeTyper):
+        def type_word(self, word, skip=0):
+            time.sleep(0.3)                      # typing itself takes 0.3 s
+            return super().type_word(word, skip)
+
+    eng, ocr, _ = make(db, retry_after=0.2)
+    eng.typer = typer = SlowTyper()
+    _run(eng, ocr, "st", 0)                      # types once (takes 0.3 s)
+    n = len(typer.typed)
+    eng.step(frame(10), now=0.45)                # only 0.15 s after typing ended
+    assert len(typer.typed) == n                 # too early to call it refused
+    eng.step(frame(10), now=0.75)                # 0.45 s after typing ended
+    assert len(typer.typed) == n + 1             # now it tries the next word
