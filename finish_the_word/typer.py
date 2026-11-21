@@ -116,6 +116,8 @@ class Typer:
     def _type_word_locked(self, word: str, skip: int = 0, erase: int = 0) -> TypeResult:
         """Type `word`; `last_typed_len` tracks text still present after partial failures."""
         cfg = self.cfg
+        # Until Backspace succeeds, the requested old characters are still present.
+        self.last_typed_len = max(0, int(erase))
         if not word or not word.isalpha():
             return TypeResult(False, "Refusing to type an invalid word")
         skip = max(0, min(skip, len(word) - 1))     # always type at least one letter
