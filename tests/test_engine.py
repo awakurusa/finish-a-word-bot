@@ -264,3 +264,41 @@ def test_retry_does_not_erase_when_disabled(db):
     _run(eng, ocr, "st", 0)
     eng.step(frame(10), now=2.0)
     assert typer.erases == [0, 0]
+
+
+def test_erases_even_when_prompt_flickers_away_and_comes_back(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=60)
+    _run(eng, ocr, "st", 0)                      # types a word, prompt "st"
+    first_len = typer.last_typed_len
+    ocr.text = ""                                # game refuses; prompt briefly vanishes
+    for i in range(4):
+        eng.step(frame(200 + i), now=1 + i * 0.1)
+    _run(eng, ocr, "st", 2)                      # same prompt returns: "new" prompt branch
+    assert len(typer.typed) == 2 and typer.erases == [0, first_len]
+
+
+def test_no_erase_for_a_different_prompt_or_after_other_players_turn(db):
+    eng, ocr, typer = make(db, selection="reliable")
+    _run(eng, ocr, "st", 0)
+    ocr.text = "th"                              # different prompt: game moved on
+    for i in range(4):
+        eng.step(frame(200), now=1 + i * 0.1)
+    assert len(typer.typed) == 2 and typer.erases == [0, 0]
+
+    eng, ocr, typer = make(db, selection="reliable")
+    _run(eng, ocr, "st", 0)
+    eng.step(frame(10), now=1.0, turn=False)     # other player's turn
+    ocr.text = "st"
+    for i in range(4):
+        eng.step(frame(10), now=2 + i * 0.1, turn=True)
+    assert typer.erases == [0, 0]
+
+
+def test_no_erase_when_the_leftover_word_is_old(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=999, erase_window=10)
+    _run(eng, ocr, "st", 0)
+    ocr.text = ""
+    for i in range(4):
+        eng.step(frame(200 + i), now=1 + i * 0.1)
+    _run(eng, ocr, "st", 60)                     # a minute later: fresh turn, empty box
+    assert typer.erases == [0, 0]

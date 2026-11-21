@@ -69,6 +69,9 @@ class Engine:
         self._submitted_at = 0.0
         self._attempted: set[str] = set()
         self._last_typed = ""
+        # prompt we last typed an answer for: that answer may still be in the box
+        self._dirty_prompt: str | None = None
+        self._dirty_at = 0.0
 
     def _emit(self, **changes) -> None:
         for k, v in changes.items():
@@ -107,6 +110,7 @@ class Engine:
         if turn is False:  # someone else's turn: keep watching, never answer
             self._candidate, self._candidate_count = "", 0
             self._submitted_prompt = None   # so we answer again when our turn comes
+            self._dirty_prompt = None       # the turn moved on, so the box is fresh
             self._emit(status="Waiting for your turn…")
             return
 
@@ -135,6 +139,9 @@ class Engine:
             self._emit(status=f"Reading '{text}'…")
             return
 
+        if text != self._dirty_prompt:
+            self._dirty_prompt = None   # a different prompt: the game moved on
+
         if text != self._submitted_prompt:
             self._attempted = set()  # brand-new prompt
             self._submit(text, now)
@@ -142,11 +149,10 @@ class Engine:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
             self._emit(status=f"'{self._last_typed}' seems refused; trying another word…")
-            erase = getattr(self.typer, "last_typed_len", 0) if cfg.clear_before_retry else 0
-            self._submit(text, now, erase=erase)  # same prompt still up: answer was rejected?
+            self._submit(text, now)  # same prompt still up: answer was rejected?
         # else: already answered this prompt; wait for it to change
 
-    def _submit(self, text: str, now: float, erase: int = 0) -> None:
+    def _submit(self, text: str, now: float) -> None:
         sol = self.db.solve(text, self.cfg, exclude=self._attempted)
         if not sol.word:
             self._submitted_prompt, self._submitted_at = text, now
@@ -154,6 +160,12 @@ class Engine:
             return
         self._emit(word=sol.word, corrected=sol.corrected, alternatives=sol.alternatives,
                    status=f"Typing '{sol.word}'…")
+        # Typing again for the prompt we already answered (whether it stayed up or
+        # flickered away and came back): the refused word is still in the box.
+        erase = 0
+        if (self.cfg.clear_before_retry and self._dirty_prompt == text
+                and now - self._dirty_at <= self.cfg.erase_window):
+            erase = getattr(self.typer, "last_typed_len", 0)
         t0 = time.monotonic()
         result = self.typer.type_word(sol.word, skip=self._already_shown(sol), erase=erase)
         typing_time = time.monotonic() - t0
@@ -163,6 +175,7 @@ class Engine:
             self.db.mark_used(sol.word)
             # time the game's reaction from when typing FINISHED, not when it began
             self._submitted_prompt, self._submitted_at = text, now + typing_time
+            self._dirty_prompt, self._dirty_at = text, now + typing_time
         # on failure leave the prompt un-submitted so the next poll retries
         self._emit(status=result.message)
 

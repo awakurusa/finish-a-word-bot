@@ -158,7 +158,10 @@ Created when you first save settings from the GUI. Key options:
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
 | `retry_after` | `1.5` | If the same prompt is still showing this many seconds after the word was typed, assume the game refused it (e.g. an opponent already used it) and try the next-best word |
 | `auto_ban_rejected` | `false` | Also ban the refused word permanently. Only for games that refuse *invalid* words; leave off if refusals are words opponents already used |
-| `clear_before_retry` | `true` | The game leaves a refused word in the box, so Backspace is pressed once per letter the bot typed before trying the next word. Set `false` if your game clears the box itself |
+| `clear_before_retry` | `true` | The game leaves a refused word in the box, so whenever the bot types again for the same prompt (even if the prompt flickered away and back) it presses Backspace once per letter it typed first. Set `false` if your game clears the box itself |
+| `erase_delay` | `0.06` | Seconds between Backspace presses |
+| `erase_pause` | `0.4` | Pause after erasing, before typing the next word, so the game registers the deletion |
+| `erase_window` | `30.0` | Only erase if the leftover word was typed within this many seconds; later than that it is a new turn with an empty box |
 | `hotkey` | `F8` | Global start/stop key |
 
 ## How the pieces behave

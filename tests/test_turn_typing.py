@@ -93,6 +93,7 @@ class RecordingKB:
 
 def make_typer(**kw):
     cfg = Config(); cfg.typing_delay = 0; cfg.pre_type_delay = 0
+    cfg.erase_delay = 0; cfg.erase_pause = 0
     for k, v in kw.items():
         setattr(cfg, k, v)
     t = Typer(cfg); t._kb = RecordingKB()
@@ -253,3 +254,22 @@ def test_typer_without_erase_does_not_backspace():
     t = make_typer()
     assert t.type_word("ab").ok
     assert ("backspace",) not in t._kb.events
+
+
+def test_typer_pauses_after_erasing_before_typing(monkeypatch):
+    t = make_typer(erase_delay=0.06, erase_pause=0.4)
+    monkeypatch.setattr("finish_the_word.typer.time.sleep",
+                        lambda s: t._kb.events.append(("sleep", s)) if s else None)
+    r = t.type_word("stick", skip=2, erase=2)
+    assert t._kb.events == [("backspace",), ("sleep", 0.06), ("backspace",), ("sleep", 0.06),
+                            ("sleep", 0.4), ("char", "i"), ("char", "c"), ("char", "k"),
+                            ("enter",)]
+    assert "after erasing 2 letters" in r.message
+
+
+def test_typer_no_pause_when_nothing_to_erase(monkeypatch):
+    t = make_typer(erase_pause=0.4)
+    slept = []
+    monkeypatch.setattr("finish_the_word.typer.time.sleep", lambda s: slept.append(s))
+    t.type_word("ab")
+    assert 0.4 not in slept

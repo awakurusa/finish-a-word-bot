@@ -110,6 +110,11 @@ class Config:
     # press Backspace once per letter the bot typed. Set False if your game
     # clears the box itself.
     clear_before_retry: bool = True
+    erase_delay: float = 0.06           # seconds between Backspace presses
+    erase_pause: float = 0.4            # pause after erasing, before typing the next word
+    # Only erase if the leftover word was typed this recently (seconds). Past that
+    # it is probably a fresh turn with the same letters and an empty box.
+    erase_window: float = 30.0
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 
     # --------------------------------------------------------------------

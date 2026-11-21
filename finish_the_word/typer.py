@@ -130,10 +130,13 @@ class Typer:
                 else:
                     kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
-            for _ in range(max(0, erase)):
-                kb.press_backspace()
-                if cfg.typing_delay > 0:
-                    time.sleep(cfg.typing_delay)
+            if erase > 0:
+                for _ in range(erase):
+                    kb.press_backspace()
+                    if cfg.erase_delay > 0:
+                        time.sleep(cfg.erase_delay)
+                if cfg.erase_pause > 0:     # let the game register the deletion before typing
+                    time.sleep(cfg.erase_pause)
             self.last_typed_len = 0
             for ch in to_type.lower():
                 kb.press_char(ch)
@@ -147,4 +150,5 @@ class Typer:
             return TypeResult(False, f"Typing library missing: {e.name}")
         except Exception as e:  # incl. pyautogui.FailSafeException
             return TypeResult(False, f"Typing failed: {type(e).__name__}: {e}")
-        return TypeResult(True, f"Typed {shown}")
+        erased = f", after erasing {erase} letter{'s' if erase != 1 else ''}" if erase > 0 else ""
+        return TypeResult(True, f"Typed {shown}{erased}")
