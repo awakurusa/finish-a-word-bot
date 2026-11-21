@@ -29,6 +29,9 @@ class _PyAutoGuiKeyboard:
     def press_enter(self):
         self.g.press("enter")
 
+    def press_backspace(self):
+        self.g.press("backspace")
+
     def press_key(self, name):
         self.g.press(name)
 
@@ -43,6 +46,7 @@ class Typer:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._kb = None
+        self.last_typed_len = 0     # letters typed by the latest type_word (what a retry must erase)
 
     def _backend(self):
         if self._kb is None:
@@ -98,9 +102,11 @@ class Typer:
                     f"(is it open, visible and not minimised? is the title right?)")
         return None
 
-    def type_word(self, word: str, skip: int = 0) -> TypeResult:
+    def type_word(self, word: str, skip: int = 0, erase: int = 0) -> TypeResult:
         """Type `word`. The first `skip` letters are not typed because the game
-        already shows them (the prompt); the rest and Enter are."""
+        already shows them (the prompt); the rest and Enter are. `erase` presses
+        Backspace that many times first, to clear a refused word the game left
+        in the box."""
         cfg = self.cfg
         if not word or not word.isalpha():
             return TypeResult(False, "Refusing to type an invalid word")
@@ -124,8 +130,14 @@ class Typer:
                 else:
                     kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
+            for _ in range(max(0, erase)):
+                kb.press_backspace()
+                if cfg.typing_delay > 0:
+                    time.sleep(cfg.typing_delay)
+            self.last_typed_len = 0
             for ch in to_type.lower():
                 kb.press_char(ch)
+                self.last_typed_len += 1
                 if cfg.typing_delay > 0:
                     time.sleep(cfg.typing_delay)
             if cfg.press_enter:

@@ -106,6 +106,10 @@ class Config:
     # game refuses words because they are invalid. Words refused because an
     # opponent used them are fine in other rounds, so leave it off for those.
     auto_ban_rejected: bool = False
+    # The game leaves a refused word in the box, so before typing the next word
+    # press Backspace once per letter the bot typed. Set False if your game
+    # clears the box itself.
+    clear_before_retry: bool = True
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 
     # --------------------------------------------------------------------

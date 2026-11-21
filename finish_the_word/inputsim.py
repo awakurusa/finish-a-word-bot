@@ -18,6 +18,8 @@ MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
 MAPVK_VK_TO_VSC = 0
 VK_RETURN = 0x0D
 SCAN_ENTER = 0x1C
+VK_BACK = 0x08
+SCAN_BACKSPACE = 0x0E
 ULONG_PTR = ctypes.c_size_t
 
 
@@ -92,6 +94,9 @@ class ScanCodeKeyboard:
 
     def press_enter(self) -> None:
         self._tap(VK_RETURN, SCAN_ENTER)
+
+    def press_backspace(self) -> None:
+        self._tap(VK_BACK, SCAN_BACKSPACE)
 
     def press_key(self, name: str) -> None:
         raise RuntimeError(f"press_key({name!r}) is not supported by this backend; use a single character")

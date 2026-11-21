@@ -158,6 +158,7 @@ Created when you first save settings from the GUI. Key options:
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
 | `retry_after` | `1.5` | If the same prompt is still showing this many seconds after the word was typed, assume the game refused it (e.g. an opponent already used it) and try the next-best word |
 | `auto_ban_rejected` | `false` | Also ban the refused word permanently. Only for games that refuse *invalid* words; leave off if refusals are words opponents already used |
+| `clear_before_retry` | `true` | The game leaves a refused word in the box, so Backspace is pressed once per letter the bot typed before trying the next word. Set `false` if your game clears the box itself |
 | `hotkey` | `F8` | Global start/stop key |
 
 ## How the pieces behave

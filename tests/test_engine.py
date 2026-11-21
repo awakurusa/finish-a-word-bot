@@ -20,11 +20,14 @@ class FakeOCR:
 
 class FakeTyper:
     def __init__(self, ok=True):
-        self.typed, self.skips, self.ok = [], [], ok
+        self.typed, self.skips, self.erases, self.ok = [], [], [], ok
+        self.last_typed_len = 0
 
-    def type_word(self, word, skip=0):
+    def type_word(self, word, skip=0, erase=0):
         self.typed.append(word)
         self.skips.append(skip)
+        self.erases.append(erase)
+        self.last_typed_len = len(word) - skip
         return TypeResult(self.ok, "typed" if self.ok else "no focus")
 
 
@@ -233,9 +236,9 @@ def test_retry_clock_starts_after_typing_finishes(db):
     import time
 
     class SlowTyper(FakeTyper):
-        def type_word(self, word, skip=0):
+        def type_word(self, word, skip=0, erase=0):
             time.sleep(0.3)                      # typing itself takes 0.3 s
-            return super().type_word(word, skip)
+            return super().type_word(word, skip, erase)
 
     eng, ocr, _ = make(db, retry_after=0.2)
     eng.typer = typer = SlowTyper()
@@ -245,3 +248,19 @@ def test_retry_clock_starts_after_typing_finishes(db):
     assert len(typer.typed) == n                 # too early to call it refused
     eng.step(frame(10), now=0.75)                # 0.45 s after typing ended
     assert len(typer.typed) == n + 1             # now it tries the next word
+
+
+def test_retry_erases_what_the_previous_attempt_typed(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=1.0)
+    _run(eng, ocr, "st", 0)                      # first word, prompt "st" skipped
+    first_len = typer.last_typed_len
+    assert first_len > 0 and typer.erases == [0]
+    eng.step(frame(10), now=2.0)                 # prompt unchanged: refused -> retry
+    assert typer.erases == [0, first_len]
+
+
+def test_retry_does_not_erase_when_disabled(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=1.0, clear_before_retry=False)
+    _run(eng, ocr, "st", 0)
+    eng.step(frame(10), now=2.0)
+    assert typer.erases == [0, 0]
