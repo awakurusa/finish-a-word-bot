@@ -98,12 +98,17 @@ class Typer:
                     f"(is it open, visible and not minimised? is the title right?)")
         return None
 
-    def type_word(self, word: str) -> TypeResult:
+    def type_word(self, word: str, skip: int = 0) -> TypeResult:
+        """Type `word`. The first `skip` letters are not typed because the game
+        already shows them (the prompt); the rest and Enter are."""
         cfg = self.cfg
         if not word or not word.isalpha():
             return TypeResult(False, "Refusing to type an invalid word")
+        skip = max(0, min(skip, len(word) - 1))     # always type at least one letter
+        to_type = word[skip:]
+        shown = f"'{word}'" if not skip else f"'{word}' (only '{to_type}', '{word[:skip]}' is already there)"
         if cfg.dry_run:
-            return TypeResult(True, f"[dry run] would type '{word}'")
+            return TypeResult(True, f"[dry run] would type {shown}")
         if winutil.blocked_by_uipi(cfg.window_title):
             return TypeResult(False, ADMIN_MESSAGE.format(title=cfg.window_title))
         problem = self._ensure_focus()
@@ -119,7 +124,7 @@ class Typer:
                 else:
                     kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
-            for ch in word.lower():
+            for ch in to_type.lower():
                 kb.press_char(ch)
                 if cfg.typing_delay > 0:
                     time.sleep(cfg.typing_delay)
@@ -130,4 +135,4 @@ class Typer:
             return TypeResult(False, f"Typing library missing: {e.name}")
         except Exception as e:  # incl. pyautogui.FailSafeException
             return TypeResult(False, f"Typing failed: {type(e).__name__}: {e}")
-        return TypeResult(True, f"Typed '{word}'")
+        return TypeResult(True, f"Typed {shown}")

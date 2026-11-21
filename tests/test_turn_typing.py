@@ -56,7 +56,7 @@ class FakeTyper:
     def __init__(self):
         self.typed = []
 
-    def type_word(self, w):
+    def type_word(self, w, skip=0):
         from finish_the_word.typer import TypeResult
         self.typed.append(w)
         return TypeResult(True)
@@ -224,3 +224,16 @@ def test_current_version_config_keeps_explicit_choice(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({"config_version": 2, "typing_backend": "pyautogui"}))
     assert Config.load(path).typing_backend == "pyautogui"
+
+
+def test_typer_skips_letters_already_on_screen():
+    t = make_typer()
+    r = t.type_word("still", skip=2)
+    assert r.ok and "ill" in r.message
+    assert t._kb.events == [("char", "i"), ("char", "l"), ("char", "l"), ("enter",)]
+
+
+def test_typer_skip_never_swallows_the_whole_word():
+    t = make_typer()
+    assert t.type_word("ab", skip=5).ok
+    assert t._kb.events == [("char", "b"), ("enter",)]

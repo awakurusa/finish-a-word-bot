@@ -147,6 +147,7 @@ Created when you first save settings from the GUI. Key options:
 | `min_zipf` | `1.5` | Commonness floor (about 1 in 30M words); relaxed automatically if nothing matches |
 | `typing_delay` | `0.04` | Seconds between keystrokes |
 | `press_enter` | `true` | Submit with Enter |
+| `skip_prompt_letters`| `true` | `prefix` mode: don't retype the prompt letters the game already shows (`st` → `still` types `ill`). `false` = type the whole word |
 | `typing_backend` | `sendinput` | Hardware scan-code input. Alternatives: `sendinput_vk`, `pydirectinput`, `pyautogui` (find yours with `--test-keys`) |
 | `key_hold` | `0.05` | Seconds each key stays pressed; raise if letters get dropped |
 | `auto_focus_roblox` | `true` | Bring the Roblox window to the front before typing |

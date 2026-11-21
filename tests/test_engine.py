@@ -20,10 +20,11 @@ class FakeOCR:
 
 class FakeTyper:
     def __init__(self, ok=True):
-        self.typed, self.ok = [], ok
+        self.typed, self.skips, self.ok = [], [], ok
 
-    def type_word(self, word):
+    def type_word(self, word, skip=0):
         self.typed.append(word)
+        self.skips.append(skip)
         return TypeResult(self.ok, "typed" if self.ok else "no focus")
 
 
@@ -144,3 +145,33 @@ def test_typer_dry_run_and_validation():
     assert t.type_word("apple").ok
     assert not t.type_word("").ok
     assert not t.type_word("ap ple").ok
+
+
+def test_skips_prompt_letters_already_shown_in_prefix_mode(db):
+    eng, ocr, typer = make(db, retry_next_word=False)
+    ocr.text = "st"
+    for i in range(4):
+        eng.step(frame(10), now=i * 0.1)
+    assert typer.typed[0].startswith("st") and typer.skips == [2]
+
+
+def test_types_whole_word_when_skip_disabled_or_not_prefix_mode(db):
+    eng, ocr, typer = make(db, retry_next_word=False, skip_prompt_letters=False)
+    ocr.text = "st"
+    for i in range(4):
+        eng.step(frame(10), now=i * 0.1)
+    assert typer.skips == [0]
+
+    eng, ocr, typer = make(db, retry_next_word=False, match_mode="suffix")
+    ocr.text = "ion"
+    for i in range(4):
+        eng.step(frame(10), now=i * 0.1)
+    assert typer.skips == [0]
+
+
+def test_blank_pattern_types_whole_word(db):
+    eng, ocr, typer = make(db, retry_next_word=False)
+    ocr.text = "ap__e"
+    for i in range(4):
+        eng.step(frame(10), now=i * 0.1)
+    assert typer.typed and typer.skips == [0]

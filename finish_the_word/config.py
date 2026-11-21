@@ -73,6 +73,10 @@ class Config:
     typing_delay: float = 0.04          # seconds between keystrokes
     pre_type_delay: float = 0.08        # seconds after focusing the box
     press_enter: bool = True
+    # The game already shows the prompt letters, so in "prefix" mode only the rest
+    # of the word is typed ("st" -> "still" types "ill"). Set to False to type the
+    # whole word if your game starts with an empty box.
+    skip_prompt_letters: bool = True
     require_roblox_focus: bool = True   # refuse to type if Roblox isn't foreground
     dry_run: bool = False               # never press keys, only report
 

@@ -149,13 +149,24 @@ class Engine:
             return
         self._emit(word=sol.word, corrected=sol.corrected, alternatives=sol.alternatives,
                    status=f"Typing '{sol.word}'…")
-        result = self.typer.type_word(sol.word)
+        result = self.typer.type_word(sol.word, skip=self._already_shown(sol))
         if result.ok:
             self._attempted.add(sol.word)
             self.db.mark_used(sol.word)
             self._submitted_prompt, self._submitted_at = text, now
         # on failure leave the prompt un-submitted so the next poll retries
         self._emit(status=result.message)
+
+    def _already_shown(self, sol: Solution) -> int:
+        """How many leading letters of the answer are already on screen as the
+        prompt, so the typer can skip them. Only plain prefix prompts qualify:
+        blank patterns (ap__e) and the other match modes need the full word."""
+        if not (self.cfg.skip_prompt_letters and self.cfg.match_mode == "prefix"):
+            return 0
+        q = sol.used_query
+        if q and "_" not in q and sol.word and sol.word.startswith(q):
+            return len(q)
+        return 0
 
     # ---- manual testing -------------------------------------------------
     def solve_manual(self, text: str, type_it: bool = False) -> Solution:
@@ -165,7 +176,7 @@ class Engine:
         sol = self.db.solve(q, self.cfg, exclude=self._attempted)
         msg = f"Manual '{q}' -> {sol.word or 'no match'}"
         if sol.word and type_it:
-            res = self.typer.type_word(sol.word)
+            res = self.typer.type_word(sol.word, skip=self._already_shown(sol))
             msg = res.message
             if res.ok:
                 self._attempted.add(sol.word)
