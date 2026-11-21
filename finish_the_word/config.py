@@ -46,7 +46,7 @@ class Config:
     match_mode: str = "prefix"
     # hard_ending (words ending in rare letters first) | reliable (most common
     # first) | longest | shortest | random
-    selection: str = "hard_ending"
+    selection: str = "reliable"
     # Rarest word-final letters first; used by "hard_ending".
     ending_priority: str = "zxqjvkwfbygp"
     min_word_len: int = 3
