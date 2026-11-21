@@ -264,3 +264,27 @@ def test_retry_does_not_erase_when_disabled(db):
     _run(eng, ocr, "st", 0)
     eng.step(frame(10), now=2.0)
     assert typer.erases == [0, 0]
+
+    
+def test_partial_typing_failure_is_cleaned_before_retry(db):
+    class PartialFailureTyper(FakeTyper):
+        def type_word(self, word, skip=0, erase=0):
+            self.typed.append(word)
+            self.skips.append(skip)
+            self.erases.append(erase)
+            if len(self.typed) == 1:
+                self.last_typed_len = 2  # only two characters reached the game
+                return TypeResult(False, "simulated mid-word failure")
+            self.last_typed_len = len(word) - skip
+            return TypeResult(True, "typed")
+
+    eng, ocr, _ = make(db, selection="reliable", poll_interval=0.15)
+    eng.typer = typer = PartialFailureTyper()
+    _run(eng, ocr, "st", 0)
+    assert len(typer.typed) == 1
+    eng.step(frame(10), now=0.4)  # failure backoff has not elapsed
+    assert len(typer.typed) == 1
+    eng.step(frame(10), now=0.8)
+    assert len(typer.typed) == 2
+    assert typer.typed[0] == typer.typed[1]  # failed injection retries same word
+    assert typer.erases == [0, 2]            # remove only the two confirmed chars
