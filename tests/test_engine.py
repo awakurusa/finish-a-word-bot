@@ -278,7 +278,9 @@ def test_partial_typing_failure_is_cleaned_before_retry(db):
             self.last_typed_len = len(word) - skip
             return TypeResult(True, "typed")
 
-    eng, ocr, _ = make(db, selection="reliable", poll_interval=0.15)
+    eng, ocr, _ = make(
+        db, selection="reliable", poll_interval=0.15, clear_before_retry=False
+    )
     eng.typer = typer = PartialFailureTyper()
     _run(eng, ocr, "st", 0)
     assert len(typer.typed) == 1
