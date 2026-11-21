@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from dataclasses import dataclass
 
 from . import winutil
@@ -46,7 +47,8 @@ class Typer:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._kb = None
-        self.last_typed_len = 0     # letters typed by the latest type_word (what a retry must erase)
+        self.last_typed_len = 0     # characters still present from the latest attempt
+        self._type_lock = threading.Lock()
 
     def _backend(self):
         if self._kb is None:
@@ -103,10 +105,16 @@ class Typer:
         return None
 
     def type_word(self, word: str, skip: int = 0, erase: int = 0) -> TypeResult:
-        """Type `word`. The first `skip` letters are not typed because the game
-        already shows them (the prompt); the rest and Enter are. `erase` presses
-        Backspace that many times first, to clear a refused word the game left
-        in the box."""
+        """Serialize keyboard jobs so manual and automatic typing cannot overlap."""
+        if not self._type_lock.acquire(blocking=False):
+            return TypeResult(False, "Typing is already in progress")
+        try:
+            return self._type_word_locked(word, skip, erase)
+        finally:
+            self._type_lock.release()
+
+    def _type_word_locked(self, word: str, skip: int = 0, erase: int = 0) -> TypeResult:
+        """Type `word`; `last_typed_len` tracks text still present after partial failures."""
         cfg = self.cfg
         if not word or not word.isalpha():
             return TypeResult(False, "Refusing to type an invalid word")
@@ -120,6 +128,8 @@ class Typer:
         problem = self._ensure_focus()
         if problem:
             return TypeResult(False, problem)
+        remaining_erase = max(0, int(erase))
+        typed_this_attempt = 0
         try:
             kb = self._backend()
             if cfg.input_pos:
@@ -130,21 +140,27 @@ class Typer:
                 else:
                     kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
-            for _ in range(max(0, erase)):
+            for _ in range(remaining_erase):
                 kb.press_backspace()
+                remaining_erase -= 1
                 if cfg.typing_delay > 0:
                     time.sleep(cfg.typing_delay)
             self.last_typed_len = 0
             for ch in to_type.lower():
                 kb.press_char(ch)
-                self.last_typed_len += 1
+                typed_this_attempt += 1
+                self.last_typed_len = typed_this_attempt
                 if cfg.typing_delay > 0:
                     time.sleep(cfg.typing_delay)
             if cfg.press_enter:
                 time.sleep(cfg.pre_type_delay)
                 kb.press_enter()
         except ImportError as e:
+            self.last_typed_len = remaining_erase + typed_this_attempt
             return TypeResult(False, f"Typing library missing: {e.name}")
         except Exception as e:  # incl. pyautogui.FailSafeException
+            # Preserve any old characters not yet erased plus the new characters
+            # whose key presses completed. The engine uses this exact count on retry.
+            self.last_typed_len = remaining_erase + typed_this_attempt
             return TypeResult(False, f"Typing failed: {type(e).__name__}: {e}")
         return TypeResult(True, f"Typed {shown}")
