@@ -89,6 +89,18 @@ def main(argv=None) -> int:
             time.sleep(1.2)
         print("Whichever letters appeared in the game are the methods that work. "
               'Set "typing_backend" in config.json to that one.')
+        # Backspace test with the configured method: type abcdef, then erase 3 and type zzz.
+        cfg.typing_backend = Config.load().typing_backend
+        cfg.erase_pause = max(cfg.erase_pause, 0.4)
+        print(f"\nBackspace test ({cfg.typing_backend}) in 3 seconds: types 'abcdef', "
+              "then presses Backspace 3 times, then types 'zzz'.")
+        time.sleep(3)
+        t = Typer(cfg)
+        print(" ", t.type_word("abcdef").message)
+        time.sleep(1.2)
+        print(" ", t.type_word("zzz", erase=3).message)
+        print("If Backspace works you now see 'abczzz'. If you see 'abcdefzzz', the game is "
+              "ignoring Backspace from this typing method: try another typing_backend.")
         return 0
 
     if args.ban:

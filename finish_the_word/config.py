@@ -112,9 +112,12 @@ class Config:
     clear_before_retry: bool = True
     erase_delay: float = 0.06           # seconds between Backspace presses
     erase_pause: float = 0.4            # pause after erasing, before typing the next word
-    # Only erase if the leftover word was typed this recently (seconds). Past that
-    # it is probably a fresh turn with the same letters and an empty box.
-    erase_window: float = 30.0
+    # Only erase if the bot last typed this recently (seconds). A refusal shows up
+    # within a couple of seconds; later than that the box is probably fresh (the
+    # word was accepted), and erasing would eat the prompt letters. Lower it if
+    # your game's turns are fast and you have no turn indicator set up.
+    erase_window: float = 6.0
+    debug_log: bool = True              # write ftw_debug.log (what was read/decided/pressed)
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 
     # --------------------------------------------------------------------

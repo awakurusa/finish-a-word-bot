@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from . import winutil
+from . import debuglog, winutil
 from .config import Config
 
 
@@ -130,6 +130,9 @@ class Typer:
                 else:
                     kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
+            debuglog.log(f"typer: word='{word}' skip={skip} erase={erase} "
+                         f"backend={cfg.typing_backend} -> backspace x{erase}, "
+                         f"letters '{to_type}', enter={cfg.press_enter}")
             if erase > 0:
                 for _ in range(erase):
                     kb.press_backspace()

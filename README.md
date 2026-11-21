@@ -107,7 +107,7 @@ Run `.venv\\Scripts\\python -m finish_the_word --diagnose` (as Administrator if 
 .venv\Scripts\python -m finish_the_word --test-keys
 ```
 
-It waits 5 seconds, brings Roblox to the front and types `aaaa` (scan codes), `bbbb` (virtual keys + scan codes), `cccc` (pydirectinput), `dddd` (pyautogui). Put Roblox somewhere the typed letters are visible (e.g. the chat box). Whichever letters appear are the methods that work; set `typing_backend` in `config.json` to that method's name (`sendinput`, `sendinput_vk`, `pydirectinput`, `pyautogui`). To check the tool itself works, run it against Notepad: `--test-keys --window Notepad`. If it works in Notepad but not Roblox, the game is rejecting that input type or is running elevated (run PowerShell as Administrator).
+It waits 5 seconds, brings Roblox to the front and types `aaaa` (scan codes), `bbbb` (virtual keys + scan codes), `cccc` (pydirectinput), `dddd` (pyautogui). Then it runs a Backspace test with your configured method: it types `abcdef`, presses Backspace 3 times and types `zzz`; you should end up with `abczzz`. Put Roblox somewhere the typed letters are visible (e.g. the chat box). Whichever letters appear are the methods that work; set `typing_backend` in `config.json` to that method's name (`sendinput`, `sendinput_vk`, `pydirectinput`, `pyautogui`). To check the tool itself works, run it against Notepad: `--test-keys --window Notepad`. If it works in Notepad but not Roblox, the game is rejecting that input type or is running elevated (run PowerShell as Administrator).
 
 If keys sometimes register and sometimes don't, raise `key_hold` (default `0.05`, seconds each key stays down) and `typing_delay` (default `0.04`) in `config.json`; Roblox only reads keys once per frame, so very short presses can be missed on low FPS.
 
@@ -158,10 +158,11 @@ Created when you first save settings from the GUI. Key options:
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
 | `retry_after` | `1.5` | If the same prompt is still showing this many seconds after the word was typed, assume the game refused it (e.g. an opponent already used it) and try the next-best word |
 | `auto_ban_rejected` | `false` | Also ban the refused word permanently. Only for games that refuse *invalid* words; leave off if refusals are words opponents already used |
-| `clear_before_retry` | `true` | The game leaves a refused word in the box, so whenever the bot types again for the same prompt (even if the prompt flickered away and back) it presses Backspace once per letter it typed first. Set `false` if your game clears the box itself |
+| `clear_before_retry` | `true` | The game leaves a refused word in the box, so when the bot types again shortly after its last attempt (whatever prompt text it reads now) it presses Backspace once per letter it typed first. Set `false` if your game clears the box itself |
 | `erase_delay` | `0.06` | Seconds between Backspace presses |
 | `erase_pause` | `0.4` | Pause after erasing, before typing the next word, so the game registers the deletion |
-| `erase_window` | `30.0` | Only erase if the leftover word was typed within this many seconds; later than that it is a new turn with an empty box |
+| `erase_window` | `6.0` | Only erase if the bot last typed within this many seconds; a refusal shows up within a couple of seconds, later than that the box is probably fresh and erasing would eat the prompt letters. Lower it if turns are fast and you have no turn indicator set up |
+| `debug_log` | `true` | Write `ftw_debug.log` (rewritten each run): what was read, what was decided, which keys were pressed |
 | `hotkey` | `F8` | Global start/stop key |
 
 ## How the pieces behave

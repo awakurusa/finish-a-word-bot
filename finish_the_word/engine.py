@@ -10,7 +10,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from . import winutil
+from . import debuglog, winutil
 from .capture import CaptureError, ScreenCapture
 from .config import Config
 from .dictionary import Solution, WordDB, load_db
@@ -53,6 +53,11 @@ class Engine:
         self.turn = turn or TurnDetector(cfg, self.capture, self.ocr)
         self.on_state = on_state
         self.state = State()
+        debuglog.enabled = cfg.debug_log
+        debuglog.log(f"engine start: clear_before_retry={cfg.clear_before_retry} "
+                     f"erase_window={cfg.erase_window} erase_pause={cfg.erase_pause} "
+                     f"retry_after={cfg.retry_after} retry_next_word={cfg.retry_next_word} "
+                     f"skip_prompt_letters={cfg.skip_prompt_letters} match_mode={cfg.match_mode}")
 
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -69,9 +74,10 @@ class Engine:
         self._submitted_at = 0.0
         self._attempted: set[str] = set()
         self._last_typed = ""
-        # prompt we last typed an answer for: that answer may still be in the box
-        self._dirty_prompt: str | None = None
-        self._dirty_at = 0.0
+        # When we last typed into the box. What we typed may still be sitting there
+        # (the game keeps refused words), whatever prompt text is read next.
+        self._dirty_at: float | None = None
+        self._logged_read = ""
 
     def _emit(self, **changes) -> None:
         for k, v in changes.items():
@@ -110,7 +116,7 @@ class Engine:
         if turn is False:  # someone else's turn: keep watching, never answer
             self._candidate, self._candidate_count = "", 0
             self._submitted_prompt = None   # so we answer again when our turn comes
-            self._dirty_prompt = None       # the turn moved on, so the box is fresh
+            self._dirty_at = None           # the turn moved on, so the box is fresh
             self._emit(status="Waiting for your turn…")
             return
 
@@ -118,6 +124,8 @@ class Engine:
             self._candidate, self._candidate_count = "", 0
             self._empty_reads += 1
             if self._empty_reads >= cfg.clear_reads:
+                if self._submitted_prompt is not None:
+                    debuglog.log(f"prompt '{self._submitted_prompt}' went away -> re-armed")
                 self._submitted_prompt = None  # prompt gone -> re-arm
             self._emit(status=read.error or "Waiting for letters…")
             return
@@ -139,8 +147,9 @@ class Engine:
             self._emit(status=f"Reading '{text}'…")
             return
 
-        if text != self._dirty_prompt:
-            self._dirty_prompt = None   # a different prompt: the game moved on
+        if text != self._logged_read:
+            self._logged_read = text
+            debuglog.log(f"read '{text}' conf={conf:.0f} turn={turn}")
 
         if text != self._submitted_prompt:
             self._attempted = set()  # brand-new prompt
@@ -148,6 +157,8 @@ class Engine:
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
+            debuglog.log(f"prompt '{text}' unchanged {now - self._submitted_at:.1f}s after typing "
+                         f"'{self._last_typed}' -> treating as refused")
             self._emit(status=f"'{self._last_typed}' seems refused; trying another word…")
             self._submit(text, now)  # same prompt still up: answer was rejected?
         # else: already answered this prompt; wait for it to change
@@ -160,22 +171,27 @@ class Engine:
             return
         self._emit(word=sol.word, corrected=sol.corrected, alternatives=sol.alternatives,
                    status=f"Typing '{sol.word}'…")
-        # Typing again for the prompt we already answered (whether it stayed up or
-        # flickered away and came back): the refused word is still in the box.
+        # Typing again soon after the last attempt: the game keeps a refused word in
+        # the box, so erase it first. This does not depend on the prompt text, which
+        # OCR can misread or which can flicker away and come back.
         erase = 0
-        if (self.cfg.clear_before_retry and self._dirty_prompt == text
+        if (self.cfg.clear_before_retry and self._dirty_at is not None
                 and now - self._dirty_at <= self.cfg.erase_window):
             erase = getattr(self.typer, "last_typed_len", 0)
+        debuglog.log(f"submit prompt='{text}' word='{sol.word}' erase={erase} "
+                     f"(last typed {'never' if self._dirty_at is None else f'{now - self._dirty_at:.1f}s ago'}, "
+                     f"last_typed_len={getattr(self.typer, 'last_typed_len', '?')})")
         t0 = time.monotonic()
         result = self.typer.type_word(sol.word, skip=self._already_shown(sol), erase=erase)
         typing_time = time.monotonic() - t0
+        debuglog.log(f"result ok={result.ok}: {result.message}")
         if result.ok:
             self._attempted.add(sol.word)
             self._last_typed = sol.word
             self.db.mark_used(sol.word)
             # time the game's reaction from when typing FINISHED, not when it began
             self._submitted_prompt, self._submitted_at = text, now + typing_time
-            self._dirty_prompt, self._dirty_at = text, now + typing_time
+            self._dirty_at = now + typing_time
         # on failure leave the prompt un-submitted so the next poll retries
         self._emit(status=result.message)
 

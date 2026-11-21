@@ -277,21 +277,14 @@ def test_erases_even_when_prompt_flickers_away_and_comes_back(db):
     assert len(typer.typed) == 2 and typer.erases == [0, first_len]
 
 
-def test_no_erase_for_a_different_prompt_or_after_other_players_turn(db):
+def test_no_erase_after_the_other_players_turn(db):
     eng, ocr, typer = make(db, selection="reliable")
     _run(eng, ocr, "st", 0)
-    ocr.text = "th"                              # different prompt: game moved on
-    for i in range(4):
-        eng.step(frame(200), now=1 + i * 0.1)
-    assert len(typer.typed) == 2 and typer.erases == [0, 0]
-
-    eng, ocr, typer = make(db, selection="reliable")
-    _run(eng, ocr, "st", 0)
-    eng.step(frame(10), now=1.0, turn=False)     # other player's turn
+    eng.step(frame(10), now=1.0, turn=False)     # other player's turn: box is fresh
     ocr.text = "st"
     for i in range(4):
         eng.step(frame(10), now=2 + i * 0.1, turn=True)
-    assert typer.erases == [0, 0]
+    assert len(typer.typed) == 2 and typer.erases == [0, 0]
 
 
 def test_no_erase_when_the_leftover_word_is_old(db):
@@ -302,3 +295,27 @@ def test_no_erase_when_the_leftover_word_is_old(db):
         eng.step(frame(200 + i), now=1 + i * 0.1)
     _run(eng, ocr, "st", 60)                     # a minute later: fresh turn, empty box
     assert typer.erases == [0, 0]
+
+
+def test_erases_after_an_ocr_misread_led_to_typing_for_the_wrong_prompt(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=999)
+    _run(eng, ocr, "st", 0)
+    ocr.text = "sx"                              # misread: bot types a word for "sx"
+    for i in range(4):
+        eng.step(frame(100 + i), now=1 + i * 0.1)
+    ocr.text = "st"                              # real prompt comes back
+    for i in range(4):
+        eng.step(frame(200 + i), now=2 + i * 0.1)
+    assert len(typer.typed) == 3
+    assert typer.erases[0] == 0 and all(e > 0 for e in typer.erases[1:])
+
+
+def test_debug_log_records_reads_decisions_and_erase(db, tmp_path):
+    from finish_the_word import debuglog
+
+    eng, ocr, typer = make(db, selection="reliable", retry_after=1.0)
+    _run(eng, ocr, "st", 0)
+    eng.step(frame(10), now=2.0)                 # refused -> retry with erase
+    text = debuglog._PATH.read_text(encoding="utf-8")
+    assert "read 'st'" in text and "submit prompt='st'" in text
+    assert "treating as refused" in text and f"erase={typer.erases[1]}" in text
