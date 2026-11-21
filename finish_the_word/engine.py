@@ -15,6 +15,7 @@ from .capture import CaptureError, ScreenCapture
 from .config import Config
 from .dictionary import Solution, WordDB, load_db
 from .ocr import OCR, OCRResult, OCRUnavailable
+from .turn import TurnDetector
 from .typer import Typer
 
 
@@ -26,6 +27,7 @@ class State:
     confidence: float = 0.0
     word: str = ""
     status: str = "Idle"
+    my_turn: bool | None = None   # None = turn check not configured
     corrected: bool = False
     alternatives: list = field(default_factory=list)
     frame: np.ndarray | None = field(default=None, repr=False)
@@ -40,6 +42,7 @@ class Engine:
         ocr: OCR | None = None,
         db: WordDB | None = None,
         typer: Typer | None = None,
+        turn: TurnDetector | None = None,
         on_state: Callable[[State], None] | None = None,
     ):
         self.cfg = cfg
@@ -47,6 +50,7 @@ class Engine:
         self.ocr = ocr or OCR(cfg)
         self.db = db or load_db(cfg)
         self.typer = typer or Typer(cfg)
+        self.turn = turn or TurnDetector(cfg, self.capture, self.ocr)
         self.on_state = on_state
         self.state = State()
 
@@ -77,7 +81,8 @@ class Engine:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         return cv2.resize(gray, (64, 24), interpolation=cv2.INTER_AREA).astype(np.float32)
 
-    def step(self, frame: np.ndarray, now: float | None = None) -> None:
+    def step(self, frame: np.ndarray, now: float | None = None, turn: bool | None = None) -> None:
+        """Process one frame. `turn`: True/False from the turn detector, None if unchecked."""
         cfg = self.cfg
         now = time.monotonic() if now is None else now
 
@@ -96,7 +101,13 @@ class Engine:
 
         text, conf = read.text, read.confidence
         letters = text.replace("_", "")
-        self._emit(raw=read.raw, letters=text, confidence=conf)
+        self._emit(raw=read.raw, letters=text, confidence=conf, my_turn=turn)
+
+        if turn is False:  # someone else's turn: keep watching, never answer
+            self._candidate, self._candidate_count = "", 0
+            self._submitted_prompt = None   # so we answer again when our turn comes
+            self._emit(status="Waiting for your turn…")
+            return
 
         if not letters or read.error:
             self._candidate, self._candidate_count = "", 0
@@ -190,7 +201,8 @@ class Engine:
         while not self._stop.is_set():
             t0 = time.monotonic()
             try:
-                self.step(self.capture.grab())
+                frame = self.capture.grab()
+                self.step(frame, turn=self.turn.check())
             except OCRUnavailable as e:
                 self._emit(running=False, status=str(e))
                 return

@@ -14,29 +14,68 @@ class TypeResult:
     message: str = ""
 
 
+class _PyAutoGuiKeyboard:
+    def __init__(self, module):
+        self.g = module
+        module.PAUSE = 0
+
+    def press_char(self, ch):
+        self.g.press(ch)
+
+    def press_enter(self):
+        self.g.press("enter")
+
+    def press_key(self, name):
+        self.g.press(name)
+
+    def click(self, x, y):
+        self.g.click(int(x), int(y))
+
+
 class Typer:
+    """Backends: "sendinput" (default on Windows, scan codes), "pydirectinput",
+    "pyautogui"."""
+
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        self._gui = None
+        self._kb = None
 
     def _backend(self):
-        if self._gui is None:
-            if self.cfg.typing_backend == "pydirectinput":
-                import pydirectinput as gui
+        if self._kb is None:
+            name = self.cfg.typing_backend
+            if name == "sendinput" and not winutil.IS_WINDOWS:
+                name = "pyautogui"          # dev machines / CI
+            if name == "sendinput":
+                from .inputsim import ScanCodeKeyboard
 
-                gui.PAUSE = 0
+                self._kb = ScanCodeKeyboard()
+            elif name == "pydirectinput":
+                import pydirectinput
+
+                self._kb = _PyAutoGuiKeyboard(pydirectinput)
             else:
-                import pyautogui as gui
+                import pyautogui
 
-                gui.PAUSE = 0
-                gui.FAILSAFE = True  # slam the mouse into a screen corner to abort
-            self._gui = gui
-        return self._gui
+                pyautogui.FAILSAFE = True  # slam the mouse into a corner to abort
+                self._kb = _PyAutoGuiKeyboard(pyautogui)
+        return self._kb
 
     def roblox_focused(self) -> bool:
-        if not self.cfg.require_roblox_focus or not winutil.IS_WINDOWS:
+        if not winutil.IS_WINDOWS:
             return True
         return self.cfg.window_title.lower() in winutil.foreground_title().lower()
+
+    def _ensure_focus(self) -> str | None:
+        """Make Roblox the active window. Returns an error message or None."""
+        if not winutil.IS_WINDOWS or self.roblox_focused():
+            return None
+        if self.cfg.auto_focus_roblox and winutil.focus_window(self.cfg.window_title):
+            time.sleep(0.12)
+            return None
+        if self.cfg.require_roblox_focus:
+            return (f"Could not switch to the '{self.cfg.window_title}' window "
+                    f"(is it open? is the title right?)")
+        return None
 
     def type_word(self, word: str) -> TypeResult:
         cfg = self.cfg
@@ -44,22 +83,26 @@ class Typer:
             return TypeResult(False, "Refusing to type an invalid word")
         if cfg.dry_run:
             return TypeResult(True, f"[dry run] would type '{word}'")
-        if not self.roblox_focused():
-            return TypeResult(False, f"'{cfg.window_title}' is not the active window")
+        problem = self._ensure_focus()
+        if problem:
+            return TypeResult(False, problem)
         try:
-            gui = self._backend()
+            kb = self._backend()
             if cfg.input_pos:
-                gui.click(int(cfg.input_pos[0]), int(cfg.input_pos[1]))
+                kb.click(cfg.input_pos[0], cfg.input_pos[1])
             elif cfg.focus_key:
-                gui.press(cfg.focus_key)
+                if len(cfg.focus_key) == 1:
+                    kb.press_char(cfg.focus_key)
+                else:
+                    kb.press_key(cfg.focus_key)
             time.sleep(cfg.pre_type_delay)
-            for ch in word:
-                gui.press(ch) if cfg.typing_backend == "pydirectinput" else gui.write(ch)
+            for ch in word.lower():
+                kb.press_char(ch)
                 if cfg.typing_delay > 0:
                     time.sleep(cfg.typing_delay)
             if cfg.press_enter:
                 time.sleep(cfg.pre_type_delay)
-                gui.press("enter")
+                kb.press_enter()
         except ImportError as e:
             return TypeResult(False, f"Typing library missing: {e.name}")
         except Exception as e:  # incl. pyautogui.FailSafeException

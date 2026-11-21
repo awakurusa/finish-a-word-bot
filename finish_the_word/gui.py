@@ -14,6 +14,7 @@ from .capture import CaptureError
 from .config import Config
 from .dictionary import MODES, SELECTIONS
 from .engine import Engine, HotkeyWatcher, State
+from .turn import mean_rgb
 
 PREVIEW_W, PREVIEW_H = 420, 120
 
@@ -78,9 +79,10 @@ class App:
         self.v_conf = tk.StringVar(value="-")
         self.v_alt = tk.StringVar(value="")
         self.v_status = tk.StringVar(value="Idle")
+        self.v_turn_state = tk.StringVar(value="not checked")
         for i, (name, var) in enumerate(
             (("Detected letters", self.v_letters), ("Selected word", self.v_word),
-             ("Confidence", self.v_conf), ("Alternatives", self.v_alt), ("Status", self.v_status))
+             ("Confidence", self.v_conf), ("Alternatives", self.v_alt), ("Your turn", self.v_turn_state), ("Status", self.v_status))
         ):
             ttk.Label(ro, text=name + ":").grid(row=i, column=0, sticky="w", **pad)
             ttk.Label(ro, textvariable=var, font=("Segoe UI", 10, "bold"),
@@ -130,6 +132,22 @@ class App:
         ttk.Checkbutton(sf, text="Dry run (don't type)", variable=self.v_dry).grid(row=6, column=1, sticky="w", **pad)
         ttk.Button(sf, text="Save settings", command=self._apply).grid(row=6, column=2, sticky="w", **pad)
 
+        # turn detection
+        self.v_turn = tk.StringVar(value=self.cfg.turn_check)
+        ttk.Label(sf, text="Turn check").grid(row=7, column=0, sticky="w", **pad)
+        ttk.Combobox(sf, values=("none", "color", "text"), textvariable=self.v_turn,
+                     width=12, state="readonly").grid(row=7, column=1, sticky="w", **pad)
+        self.v_turn_info = tk.StringVar(value=self._turn_info())
+        ttk.Label(sf, textvariable=self.v_turn_info, wraplength=240).grid(row=7, column=2, sticky="w", **pad)
+        ttk.Button(sf, text="Select turn indicator…", command=self._select_turn_region).grid(row=8, column=1, sticky="w", **pad)
+        ttk.Button(sf, text="Learn 'my turn' color", command=self._learn_turn_color).grid(row=8, column=2, sticky="w", **pad)
+        self.v_turn_text = tk.StringVar(value=self.cfg.turn_text)
+        ttk.Label(sf, text="Turn text").grid(row=9, column=0, sticky="w", **pad)
+        ttk.Entry(sf, textvariable=self.v_turn_text, width=16).grid(row=9, column=1, sticky="w", **pad)
+        self.v_turn_inv = tk.BooleanVar(value=self.cfg.turn_invert)
+        ttk.Checkbutton(sf, text="Act when indicator is absent", variable=self.v_turn_inv).grid(row=9, column=2, sticky="w")
+        ttk.Button(sf, text="Test turn check now", command=self._test_turn).grid(row=10, column=1, sticky="w", **pad)
+
     # ---- settings -------------------------------------------------------
     def _pos_text(self) -> str:
         p = self.cfg.input_pos
@@ -148,16 +166,27 @@ class App:
         c.selection = self.v_sel.get()
         c.press_enter = self.v_enter.get()
         c.dry_run = self.v_dry.get()
+        c.turn_check = self.v_turn.get()
+        c.turn_text = self.v_turn_text.get().strip()
+        c.turn_invert = self.v_turn_inv.get()
         if save:
             c.save()
             self.v_status.set("Settings saved")
         return True
 
-    def _select_region(self) -> None:
+    def _select_region(self, on_done=None) -> None:
         self.root.withdraw()
-        self.root.after(250, self._region_overlay)
+        self.root.after(250, lambda: self._region_overlay(on_done))
 
-    def _region_overlay(self) -> None:
+    def _to_cfg_coords(self, left: int, top: int) -> tuple[int, int]:
+        """Screen coords -> what the config stores (window-relative if enabled)."""
+        if self.cfg.region_relative_to_window:
+            rect = winutil.find_window_client_rect(self.cfg.window_title)
+            if rect:
+                return left - rect[0], top - rect[1]
+        return left, top
+
+    def _region_overlay(self, on_done=None) -> None:
         ov = tk.Toplevel()
         ov.attributes("-fullscreen", True)
         ov.attributes("-topmost", True)
@@ -187,7 +216,10 @@ class App:
             w, h = abs(e.x_root - x0), abs(e.y_root - y0)
             ov.destroy()
             self.root.deiconify()
-            if w >= 8 and h >= 8:
+            if w >= 8 and h >= 8 and on_done:
+                on_done(*self._to_cfg_coords(l, t), w, h)
+            elif w >= 8 and h >= 8:
+                l, t = self._to_cfg_coords(l, t)
                 for var, val in zip(self.v_region, (l, t, w, h)):
                     var.set(val)
                 self._apply(save=True)
@@ -213,6 +245,48 @@ class App:
         self.v_input.set(self._pos_text())
         self.btn_pick.config(text="Pick (hover box, 3s)")
         self.cfg.save()
+
+    # ---- turn detection -------------------------------------------------
+    def _turn_info(self) -> str:
+        c = self.cfg
+        reg = f"region {c.turn_region}" if c.turn_region else "no region"
+        col = f", color {c.turn_color}" if c.turn_color else ""
+        return reg + col
+
+    def _select_turn_region(self) -> None:
+        def done(l, t, w, h):
+            self.cfg.turn_region = [l, t, w, h]
+            self.cfg.save()
+            self.v_turn_info.set(self._turn_info())
+            self.v_status.set("Turn indicator region saved. If it is YOUR turn now, "
+                              "click 'Learn my turn color'.")
+        self._select_region(done)
+
+    def _learn_turn_color(self) -> None:
+        if not self.cfg.turn_region:
+            self.v_status.set("Select the turn indicator region first")
+            return
+        try:
+            frame = self.engine.capture.grab(self.cfg.turn_region)
+        except CaptureError as e:
+            self.v_status.set(str(e))
+            return
+        self.cfg.turn_color = mean_rgb(frame)
+        self.v_turn.set("color")
+        self._apply(save=True)
+        self.v_turn_info.set(self._turn_info())
+        self.v_status.set(f"Learned 'my turn' color {self.cfg.turn_color}")
+
+    def _test_turn(self) -> None:
+        self._apply(save=False)
+        try:
+            r = self.engine.turn.check()
+        except Exception as e:
+            self.v_status.set(f"Turn check failed: {e}")
+            return
+        self.v_turn_state.set({True: "YES", False: "no", None: "not checked"}[r])
+        self.v_status.set("Turn check: " + {True: "it IS your turn", False: "NOT your turn",
+                                            None: "not configured (needs region + color/text)"}[r])
 
     # ---- actions --------------------------------------------------------
     def _toggle(self) -> None:
@@ -274,6 +348,7 @@ class App:
             self.v_word.set((s.word + (" (corrected)" if s.corrected else "")) if s.word else "-")
             self.v_alt.set(", ".join(s.alternatives))
             self.v_status.set(s.status)
+            self.v_turn_state.set({True: "YES", False: "no", None: "not checked"}[s.my_turn])
             self.btn.config(text=(f"Stop ({self.cfg.hotkey})" if self.engine.running
                                   else f"Start ({self.cfg.hotkey})"))
             if s.frame is not None and s.frame is not self._shown_frame:

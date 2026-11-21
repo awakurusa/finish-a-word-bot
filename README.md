@@ -76,6 +76,27 @@ python tools/build_templates.py row1.png GABCDEFGHIJKLMNOP row2.png QRSTUVWXYZ
 
 (each image followed by its letters left-to-right). Set `reader` to `tiles` or `text` to force one method, and lower `tile_min_score` (default 0.75) if real letters show up red.
 
+## Fully automatic play: knowing it's your turn
+
+Without a turn check the bot answers whenever it can read a prompt. To make it answer **only on your turn**, point it at whatever the game shows when it's your turn (a "Your turn" label, a glowing/colored bar, your name highlighted, the answer box appearing):
+
+1. Wait until it is **not** your turn. Click **Select turn indicator…** and drag a box tightly around that indicator's spot.
+2. When it **is** your turn, click **Learn 'my turn' color** (color mode), or set *Turn check* to `text` and type the words the game shows (e.g. `your turn`).
+3. Click **Test turn check now** on both kinds of turn: it should say YES on yours and no otherwise. The "Your turn" line in the Status box shows the live result.
+4. If the indicator *disappears* on your turn, tick **Act when indicator is absent**.
+
+While it isn't your turn the bot keeps watching but never types, and it re-arms automatically so it answers again when your turn comes back with the same letters. Then just press **Start** (or F8) and leave it running.
+
+## If nothing gets typed in Roblox
+
+Look at the **Status** line in the panel after a word is chosen; it says exactly what happened.
+
+* *"Could not switch to the 'Roblox' window"*: Roblox isn't open or its window title differs; set `window_title`.
+* *"SendInput was blocked"*: Roblox is running as Administrator. Run the terminal/PowerShell as Administrator too.
+* *"Typed 'word'" but nothing appears*: the click on the answer box missed or the chat/answer box needs a different way to focus. Re-do **Pick (hover box, 3s)** with the mouse exactly on the box, or clear it and set `focus_key` (e.g. `"/"`). Try **Find & type (3s)** to test typing alone.
+* *"[dry run] would type"*: untick **Dry run**.
+* Roblox must be windowed or borderless; screen capture and clicks don't work in exclusive fullscreen.
+
 ## Command line helpers
 
 ```powershell
@@ -104,7 +125,11 @@ Created when you first save settings from the GUI. Key options:
 | `min_zipf` | `1.5` | Commonness floor (about 1 in 30M words); relaxed automatically if nothing matches |
 | `typing_delay` | `0.03` | Seconds between keystrokes |
 | `press_enter` | `true` | Submit with Enter |
-| `typing_backend` | `pyautogui` | Use `pydirectinput` if Roblox ignores keystrokes (`pip install pydirectinput`) |
+| `typing_backend` | `sendinput` | Hardware scan-code input (works with Roblox). Alternatives: `pydirectinput`, `pyautogui` |
+| `auto_focus_roblox` | `true` | Bring the Roblox window to the front before typing |
+| `turn_check` | `none` | `none`, `color` or `text`: how the bot knows it's your turn (see below) |
+| `turn_region` / `turn_color` / `turn_text` | | Indicator region, learned color, or keyword (e.g. `your turn`) |
+| `turn_invert` | `false` | Act when the indicator is *absent* |
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
 | `retry_after` | `3.0` | If the same prompt is still showing after this many seconds, try the next-best word |
 | `hotkey` | `F8` | Global start/stop key |
@@ -120,7 +145,6 @@ Created when you first save settings from the GUI. Key options:
 
 * *"Tesseract executable not found"*: install it and/or set `tesseract_cmd`.
 * *Wrong letters / low confidence*: tighten the region, make sure no other text is inside it, and compare the two preview images. Try `tesseract_psm: 8`, a larger `ocr_scale`, or `ocr_backend: easyocr`.
-* *Nothing is typed in Roblox*: set `typing_backend` to `pydirectinput`; run the terminal as Administrator if Roblox runs elevated.
 * *Preview is black*: Roblox is in exclusive fullscreen; switch to windowed/borderless.
 * *Region is offset on high-DPI displays*: the app enables DPI awareness itself; use **Select region…** rather than typing numbers.
 * Multi-monitor: **Select region…** covers the primary monitor only; enter coordinates manually for other monitors.

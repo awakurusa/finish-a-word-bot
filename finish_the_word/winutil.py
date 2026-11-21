@@ -41,9 +41,9 @@ def foreground_title() -> str:
     return _window_title(ctypes.windll.user32.GetForegroundWindow())
 
 
-def find_window_client_rect(title: str):
-    """Return (left, top, width, height) of the client area of the window whose
-    title best matches `title`, or None. Exact match beats substring match."""
+def find_hwnd(title: str):
+    """Handle of the visible window whose title best matches `title`
+    (exact match beats substring match), or None."""
     if not IS_WINDOWS:
         return None
     import ctypes
@@ -64,14 +64,52 @@ def find_window_client_rect(title: str):
         return True
 
     user32.EnumWindows(enum_cb, 0)
-    if not found:
+    return sorted(found)[0][1] if found else None
+
+
+def find_window_client_rect(title: str):
+    """(left, top, width, height) of the matching window's client area, or None."""
+    if not IS_WINDOWS:
         return None
-    hwnd = sorted(found)[0][1]
+    import ctypes
+    from ctypes import wintypes
+
+    hwnd = find_hwnd(title)
+    if hwnd is None:
+        return None
+    user32 = ctypes.windll.user32
     rect = wintypes.RECT()
     user32.GetClientRect(hwnd, ctypes.byref(rect))
     pt = wintypes.POINT(0, 0)
     user32.ClientToScreen(hwnd, ctypes.byref(pt))
     return pt.x, pt.y, rect.right - rect.left, rect.bottom - rect.top
+
+
+def focus_window(title: str) -> bool:
+    """Bring the matching window to the foreground. True if it ended up there."""
+    if not IS_WINDOWS:
+        return True
+    import ctypes
+    import time
+
+    user32 = ctypes.windll.user32
+    hwnd = find_hwnd(title)
+    if hwnd is None:
+        return False
+    if user32.GetForegroundWindow() == hwnd:
+        return True
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    # Windows only lets the foreground process steal focus; tapping Alt first
+    # is the standard trick that makes SetForegroundWindow succeed.
+    user32.keybd_event(0x12, 0, 0, 0)
+    user32.keybd_event(0x12, 0, 2, 0)
+    user32.SetForegroundWindow(hwnd)
+    for _ in range(10):
+        if user32.GetForegroundWindow() == hwnd:
+            return True
+        time.sleep(0.02)
+    return False
 
 
 def key_down(name: str) -> bool:

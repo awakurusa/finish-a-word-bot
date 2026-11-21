@@ -217,6 +217,10 @@ class OCR:
             if self.cfg.reader == "tiles":
                 self.last_processed = None
                 return OCRResult()
+        return self.read_text(img_bgr)
+
+    def read_text(self, img_bgr: np.ndarray) -> OCRResult:
+        """Plain text OCR (Tesseract / EasyOCR), no tile detection."""
         best = OCRResult()
         # A flat frame has no text; Tesseract would hallucinate letters on it.
         if float(np.std(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY))) < MIN_CONTRAST:

@@ -28,8 +28,8 @@ class ScreenCapture:
             sct = self._local.sct = mss.mss()
         return sct
 
-    def absolute_region(self) -> tuple[int, int, int, int]:
-        left, top, width, height = (int(v) for v in self.cfg.region)
+    def absolute_region(self, region=None) -> tuple[int, int, int, int]:
+        left, top, width, height = (int(v) for v in (region or self.cfg.region))
         if self.cfg.region_relative_to_window:
             rect = winutil.find_window_client_rect(self.cfg.window_title)
             if rect is None:
@@ -40,8 +40,9 @@ class ScreenCapture:
             raise CaptureError("Capture region is too small")
         return left, top, width, height
 
-    def grab(self) -> np.ndarray:
-        left, top, width, height = self.absolute_region()
+    def grab(self, region=None) -> np.ndarray:
+        """Grab `region` ([l, t, w, h]) or, by default, the letter-prompt region."""
+        left, top, width, height = self.absolute_region(region)
         shot = self._sct().grab(
             {"left": left, "top": top, "width": width, "height": height}
         )

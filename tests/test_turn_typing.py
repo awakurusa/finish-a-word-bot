@@ -1,0 +1,134 @@
+import numpy as np
+
+from finish_the_word import winutil
+from finish_the_word.config import Config
+from finish_the_word.dictionary import WordDB
+from finish_the_word.engine import Engine
+from finish_the_word.ocr import OCRResult
+from finish_the_word.turn import TurnDetector, color_matches, mean_rgb
+from finish_the_word.typer import Typer
+
+
+def solid(rgb, size=(20, 30)):
+    img = np.zeros((*size, 3), np.uint8)
+    img[:, :] = rgb[::-1]          # BGR
+    return img
+
+
+def test_color_detector():
+    assert mean_rgb(solid((10, 200, 30))) == [10, 200, 30]
+    assert color_matches(solid((12, 195, 35)), [10, 200, 30], 45)
+    assert not color_matches(solid((200, 40, 40)), [10, 200, 30], 45)
+
+
+def test_turn_detector_modes_and_invert():
+    cfg = Config()
+    td = TurnDetector(cfg, capture=None, ocr=None)
+    assert td.check() is None                       # not configured
+    cfg.turn_check, cfg.turn_region, cfg.turn_color = "color", [0, 0, 10, 10], [10, 200, 30]
+    assert td.enabled
+    assert td.check(solid((10, 200, 30))) is True
+    assert td.check(solid((200, 0, 0))) is False
+    cfg.turn_invert = True
+    assert td.check(solid((200, 0, 0))) is True
+
+
+def test_turn_detector_text_mode():
+    class FakeOCR:
+        def read_text(self, img):
+            return OCRResult(raw="  Your  Turn! ")
+    cfg = Config()
+    cfg.turn_check, cfg.turn_region, cfg.turn_text = "text", [0, 0, 9, 9], "your turn"
+    assert TurnDetector(cfg, None, FakeOCR()).check(solid((0, 0, 0))) is True
+    cfg.turn_text = "opponent"
+    assert TurnDetector(cfg, None, FakeOCR()).check(solid((0, 0, 0))) is False
+
+
+class FakeOCR:
+    def __init__(self):
+        self.text = "st"
+
+    def read(self, f):
+        return OCRResult(text=self.text, raw=self.text, confidence=95.0, processed=f[:, :, 0])
+
+
+class FakeTyper:
+    def __init__(self):
+        self.typed = []
+
+    def type_word(self, w):
+        from finish_the_word.typer import TypeResult
+        self.typed.append(w)
+        return TypeResult(True)
+
+
+def test_engine_waits_for_turn_then_answers_same_prompt():
+    cfg = Config(); cfg.persist_used_words = False; cfg.retry_next_word = False
+    db = WordDB(); typer = FakeTyper()
+    eng = Engine(cfg, capture=object(), ocr=FakeOCR(), db=db, typer=typer,
+                 turn=TurnDetector(cfg, None, None))
+    f = np.full((40, 120, 3), 10, np.uint8)
+    for i in range(5):                      # opponent's turn: never types
+        eng.step(f, now=i * 0.1, turn=False)
+    assert typer.typed == [] and "turn" in eng.state.status.lower()
+    for i in range(4):                      # our turn begins
+        eng.step(f, now=1 + i * 0.1, turn=True)
+    assert len(typer.typed) == 1
+    for i in range(3):                      # opponent again, then us, same letters
+        eng.step(f, now=2 + i * 0.1, turn=False)
+    for i in range(4):
+        eng.step(f, now=3 + i * 0.1, turn=True)
+    assert len(typer.typed) == 2
+
+
+class RecordingKB:
+    def __init__(self):
+        self.events = []
+    def click(self, x, y): self.events.append(("click", x, y))
+    def press_char(self, c): self.events.append(("char", c))
+    def press_key(self, k): self.events.append(("key", k))
+    def press_enter(self): self.events.append(("enter",))
+
+
+def make_typer(**kw):
+    cfg = Config(); cfg.typing_delay = 0; cfg.pre_type_delay = 0
+    for k, v in kw.items():
+        setattr(cfg, k, v)
+    t = Typer(cfg); t._kb = RecordingKB()
+    return t
+
+
+def test_typer_clicks_box_types_letters_and_enter():
+    t = make_typer(input_pos=[500, 600])
+    assert t.type_word("Zinc").ok
+    assert t._kb.events == [("click", 500, 600), ("char", "z"), ("char", "i"),
+                            ("char", "n"), ("char", "c"), ("enter",)]
+
+
+def test_typer_focus_key_and_no_enter():
+    t = make_typer(focus_key="/", press_enter=False)
+    assert t.type_word("ab").ok
+    assert t._kb.events == [("char", "/"), ("char", "a"), ("char", "b")]
+
+
+def test_typer_reports_failures_instead_of_crashing():
+    t = make_typer()
+    t._kb.press_char = lambda c: (_ for _ in ()).throw(RuntimeError("blocked"))
+    r = t.type_word("ab")
+    assert not r.ok and "blocked" in r.message
+
+
+def test_typer_auto_focuses_roblox(monkeypatch):
+    t = make_typer()
+    calls = []
+    monkeypatch.setattr(winutil, "IS_WINDOWS", True)
+    monkeypatch.setattr(winutil, "foreground_title", lambda: "Claude")
+    monkeypatch.setattr(winutil, "focus_window", lambda title: calls.append(title) or True)
+    assert t.type_word("ab").ok and calls == ["Roblox"]
+    monkeypatch.setattr(winutil, "focus_window", lambda title: False)
+    r = t.type_word("ab")
+    assert not r.ok and "Roblox" in r.message
+
+
+def test_default_backend_is_scancode_sendinput():
+    assert Config().typing_backend == "sendinput"

@@ -53,7 +53,9 @@ class Config:
     persist_used_words: bool = True
 
     # ---- keyboard automation --------------------------------------------
-    typing_backend: str = "pyautogui"   # "pyautogui" | "pydirectinput"
+    # "sendinput" (hardware scan codes, works with Roblox) | "pydirectinput" | "pyautogui"
+    typing_backend: str = "sendinput"
+    auto_focus_roblox: bool = True      # bring Roblox to the front before typing
     input_pos: list | None = None       # [x, y] of the answer box; None = skip click
     focus_key: str = ""                 # e.g. "/" to focus Roblox chat
     typing_delay: float = 0.03          # seconds between keystrokes
@@ -61,6 +63,18 @@ class Config:
     press_enter: bool = True
     require_roblox_focus: bool = True   # refuse to type if Roblox isn't foreground
     dry_run: bool = False               # never press keys, only report
+
+    # ---- turn detection ---------------------------------------------------
+    # How the bot knows it is YOUR turn (so it never answers on others' turns).
+    #   none  - answer whenever a prompt is readable
+    #   color - a small region ([l,t,w,h]) matches `turn_color` when it's your turn
+    #   text  - a small region's text contains `turn_text` (e.g. "your turn")
+    turn_check: str = "none"
+    turn_region: list | None = None
+    turn_color: list | None = None      # [r, g, b], learned from the GUI
+    turn_color_tolerance: float = 45.0  # max RGB distance counted as a match
+    turn_text: str = "your turn"
+    turn_invert: bool = False           # True = act when the indicator is ABSENT
 
     # ---- main loop ------------------------------------------------------
     poll_interval: float = 0.15         # seconds between captures
