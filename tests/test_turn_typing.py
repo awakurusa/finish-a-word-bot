@@ -177,3 +177,15 @@ def test_backend_names_and_hold_default():
     c = Config()
     assert c.key_hold >= 0.04            # Roblox needs keys held across a frame
     assert c.typing_backend in ("sendinput", "sendinput_vk", "pydirectinput", "pyautogui")
+
+
+def test_refuses_to_claim_success_when_roblox_is_elevated(monkeypatch):
+    t = make_typer()
+    monkeypatch.setattr(winutil, "blocked_by_uipi", lambda title: True)
+    r = t.type_word("ab")
+    assert not r.ok and "Administrator" in r.message and t._kb.events == []
+
+
+def test_uipi_check_is_false_off_windows():
+    assert winutil.blocked_by_uipi("Roblox") is False
+    assert winutil.is_admin() is False

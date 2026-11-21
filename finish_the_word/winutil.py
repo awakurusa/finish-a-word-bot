@@ -144,6 +144,70 @@ def focus_click_points(title: str) -> list[tuple[int, int]]:
     return ok
 
 
+def is_admin() -> bool:
+    """True if this process is elevated (running as Administrator)."""
+    if not IS_WINDOWS:
+        return False
+    import ctypes
+
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _process_elevated(pid: int):
+    """True/False if the process is/isn't elevated, None if unknown."""
+    import ctypes
+    from ctypes import wintypes
+
+    k32, adv = ctypes.windll.kernel32, ctypes.windll.advapi32
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    adv.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    adv.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    ACCESS_DENIED = 5
+    proc = k32.OpenProcess(0x1000, False, pid)            # PROCESS_QUERY_LIMITED_INFORMATION
+    if not proc:
+        return True if ctypes.GetLastError() == ACCESS_DENIED else None
+    token = wintypes.HANDLE()
+    try:
+        if not adv.OpenProcessToken(proc, 0x0008, ctypes.byref(token)):   # TOKEN_QUERY
+            return True if ctypes.GetLastError() == ACCESS_DENIED else None
+        elevated, size = wintypes.DWORD(), wintypes.DWORD()
+        if not adv.GetTokenInformation(token, 20, ctypes.byref(elevated),   # TokenElevation
+                                       ctypes.sizeof(elevated), ctypes.byref(size)):
+            return None
+        return bool(elevated.value)
+    finally:
+        if token:
+            k32.CloseHandle(token)
+        k32.CloseHandle(proc)
+
+
+def blocked_by_uipi(title: str) -> bool:
+    """True when the target window runs as Administrator but we don't, so
+    Windows silently discards our keyboard/mouse input (UIPI)."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        if is_admin():
+            return False
+        hwnd = find_hwnd(title)
+        if hwnd is None:
+            return False
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return _process_elevated(pid.value) is True
+    except Exception:
+        return False
+
+
 def key_down(name: str) -> bool:
     """True while the named key (e.g. 'F8') is physically held. Windows only."""
     if not IS_WINDOWS:

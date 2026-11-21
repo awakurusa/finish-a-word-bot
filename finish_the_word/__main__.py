@@ -28,8 +28,21 @@ def main(argv=None) -> int:
                     help="type test letters with every input method to find the one that works")
     ap.add_argument("--window", metavar="TITLE", help="window to type into for --test-keys (e.g. Notepad)")
     ap.add_argument("--backend", help="only test this typing backend")
+    ap.add_argument("--admin", action="store_true",
+                    help="relaunch this program as Administrator (needed if Roblox runs as admin)")
     ap.add_argument("--dry-run", action="store_true", help="never press keys")
     args = ap.parse_args(argv)
+
+    if args.admin and winutil.IS_WINDOWS and not winutil.is_admin():
+        import ctypes
+
+        rest = " ".join(f'"{a}"' for a in (argv if argv is not None else sys.argv[1:]) if a != "--admin")
+        rc = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, f"-m finish_the_word {rest}", str(ROOT), 1)
+        if rc <= 32:
+            print("Could not start as Administrator (was the prompt declined?)")
+            return 1
+        return 0
 
     winutil.enable_dpi_awareness()
     cfg = Config.load()
@@ -48,8 +61,10 @@ def main(argv=None) -> int:
             "sendinput", "sendinput_vk", "pydirectinput", "pyautogui"]
         admin = ""
         if winutil.IS_WINDOWS:
-            from .inputsim import is_admin
-            admin = f"running as Administrator: {is_admin()}"
+            admin = f"this tool is Administrator: {winutil.is_admin()}"
+            if winutil.blocked_by_uipi(cfg.window_title):
+                admin += (f"  *** '{cfg.window_title}' is running as Administrator, so Windows "
+                          "blocks our input. Run again with --admin ***")
         print(f"Typing test into the '{cfg.window_title}' window. {admin}")
         print("Each method types a different letter: aaaa, bbbb, cccc, dddd.")
         print("Starting in 5 seconds; it will bring that window to the front.")

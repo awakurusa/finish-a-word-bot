@@ -59,13 +59,6 @@ def _key_event(vk: int, scan: int, up: bool, use_vk: bool) -> INPUT:
     return INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(0, scan, flags | KEYEVENTF_SCANCODE, 0, 0))
 
 
-def is_admin() -> bool:
-    try:
-        return bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except Exception:
-        return False
-
-
 class ScanCodeKeyboard:
     """Same tiny interface as the other typing backends.
 

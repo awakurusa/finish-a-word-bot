@@ -8,6 +8,10 @@ from . import winutil
 from .config import Config
 
 
+ADMIN_MESSAGE = ("'{title}' is running as Administrator, so Windows blocks this tool's "
+                 "keystrokes. Restart the tool as Administrator (run_as_admin.bat)")
+
+
 @dataclass
 class TypeResult:
     ok: bool
@@ -100,6 +104,8 @@ class Typer:
             return TypeResult(False, "Refusing to type an invalid word")
         if cfg.dry_run:
             return TypeResult(True, f"[dry run] would type '{word}'")
+        if winutil.blocked_by_uipi(cfg.window_title):
+            return TypeResult(False, ADMIN_MESSAGE.format(title=cfg.window_title))
         problem = self._ensure_focus()
         if problem:
             return TypeResult(False, problem)

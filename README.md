@@ -87,6 +87,16 @@ Without a turn check the bot answers whenever it can read a prompt. To make it a
 
 While it isn't your turn the bot keeps watching but never types, and it re-arms automatically so it answers again when your turn comes back with the same letters. Then just press **Start** (or F8) and leave it running.
 
+## If Roblox is running as Administrator
+
+Windows silently discards keystrokes and clicks sent by a normal program to an Administrator program. Then everything *looks* fine (the status says "Typed") but Roblox never receives anything. Fix: run this tool as Administrator too.
+
+* Double-click **`run_as_admin.bat`** (accept the Windows prompt), or
+* open PowerShell as Administrator and run `.venv\Scripts\python -m finish_the_word`, or
+* from a normal window: `.venv\Scripts\python -m finish_the_word --admin`.
+
+The tool now detects this situation and reports it in the Status line instead of saying "Typed". If you'd rather not use admin mode, start Roblox normally (not "Run as administrator") and leave the tool as it is.
+
 ## If nothing gets typed in Roblox
 
 **Run the typing test first.** It tries every input method, each typing a different letter, so you can see which one your Roblox accepts:
