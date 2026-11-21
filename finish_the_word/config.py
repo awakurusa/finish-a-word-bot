@@ -99,6 +99,9 @@ class Config:
     clear_reads: int = 3                # empty reads that re-arm the same prompt
     retry_after: float = 3.0            # seconds before trying another word
     retry_next_word: bool = True        # try another word if prompt doesn't change
+    # When the same prompt is still up after retry_after seconds, assume the game
+    # rejected the word we typed and ban it for good (saved to blocklist.txt).
+    auto_ban_rejected: bool = False
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 
     # --------------------------------------------------------------------

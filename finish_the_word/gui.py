@@ -63,6 +63,7 @@ class App:
         self.btn.pack(side="left")
         ttk.Button(top, text="Refresh preview", command=self._refresh_preview).pack(side="left", padx=6)
         ttk.Button(top, text="Reset used words", command=self._reset_used).pack(side="left")
+        ttk.Button(top, text="Ban last word", command=self._ban_last).pack(side="left", padx=6)
         if winutil.IS_WINDOWS and not winutil.is_admin():
             ttk.Button(top, text="Restart as admin", command=self._restart_admin).pack(side="left", padx=6)
 
@@ -301,6 +302,9 @@ class App:
             self._close()
         else:
             self.v_status.set("Could not restart as Administrator (prompt declined?)")
+
+    def _ban_last(self) -> None:
+        self.v_status.set(self.engine.ban_last_word())
 
     def _reset_used(self) -> None:
         self.engine.db.reset_used()

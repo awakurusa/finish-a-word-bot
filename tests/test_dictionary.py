@@ -118,3 +118,35 @@ def test_hard_ending_examples(db):
     c = cfg(selection="hard_ending")
     print({p: db.solve(p, c).word for p in ("bu", "co", "qu", "st", "th", "ma", "re")})
     assert db.solve("bu", c).word[-1] in "zxqjvkwf"
+
+
+def _small_db(tmp_path, with_file=True):
+    words = tmp_path / "words.txt"
+    words.write_text("stand\t4.0\nstale\t3.0\nstill\t5.0\nstick\t4.5\n", encoding="utf-8")
+    block = tmp_path / "blocklist.txt"
+    return WordDB(path=words, blocklist=block if with_file else None), block
+
+
+def test_ban_removes_word_everywhere_and_saves_it(tmp_path):
+    db, block = _small_db(tmp_path)
+    assert db.solve("st", cfg(selection="reliable")).word == "still"
+    assert db.ban("Still")
+    assert "still" not in db and "still" not in db.search("st", "prefix")
+    assert db.search("ill", "suffix") == []
+    assert db.solve("st", cfg(selection="reliable")).word == "stick"
+    assert block.read_text().split() == ["still"]
+    # a fresh load honours the saved ban
+    assert "still" not in WordDB(path=tmp_path / "words.txt", blocklist=block)
+
+
+def test_ban_twice_and_junk(tmp_path):
+    db, block = _small_db(tmp_path)
+    block.write_text("stale", encoding="utf-8")      # no trailing newline
+    assert db.ban("stand") and db.ban("stand")
+    assert block.read_text().split() == ["stale", "stand"]
+    assert not db.ban("") and not db.ban("two words") and not db.ban("ab1")
+
+
+def test_ban_without_a_blocklist_file_still_works_in_memory(tmp_path):
+    db, _ = _small_db(tmp_path, with_file=False)
+    assert db.ban("still") and "still" not in db

@@ -68,6 +68,7 @@ class Engine:
         self._submitted_prompt: str | None = None
         self._submitted_at = 0.0
         self._attempted: set[str] = set()
+        self._last_typed = ""
 
     def _emit(self, **changes) -> None:
         for k, v in changes.items():
@@ -138,6 +139,8 @@ class Engine:
             self._attempted = set()  # brand-new prompt
             self._submit(text, now)
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
+            if cfg.auto_ban_rejected and self._last_typed:
+                self.db.ban(self._last_typed)   # prompt unchanged: game refused it
             self._submit(text, now)  # same prompt still up: answer was rejected?
         # else: already answered this prompt; wait for it to change
 
@@ -152,6 +155,7 @@ class Engine:
         result = self.typer.type_word(sol.word, skip=self._already_shown(sol))
         if result.ok:
             self._attempted.add(sol.word)
+            self._last_typed = sol.word
             self.db.mark_used(sol.word)
             self._submitted_prompt, self._submitted_at = text, now
         # on failure leave the prompt un-submitted so the next poll retries
@@ -167,6 +171,21 @@ class Engine:
         if q and "_" not in q and sol.word and sol.word.startswith(q):
             return len(q)
         return 0
+
+    def ban_word(self, word: str) -> str:
+        """Permanently ban a word; returns a status line."""
+        word = word.strip().lower()
+        if not word.isalpha():
+            return "Nothing to ban"
+        self.db.ban(word)
+        self._attempted.add(word)
+        msg = f"Banned '{word}'"
+        self._emit(status=msg)
+        return msg
+
+    def ban_last_word(self) -> str:
+        """Ban the word typed most recently (the one the game didn't accept)."""
+        return self.ban_word(self._last_typed or self.state.word)
 
     # ---- manual testing -------------------------------------------------
     def solve_manual(self, text: str, type_it: bool = False) -> Solution:

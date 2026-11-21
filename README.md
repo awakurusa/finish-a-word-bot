@@ -124,6 +124,7 @@ Look at the **Status** line in the panel after a word is chosen; it says exactly
 ```powershell
 python -m finish_the_word --solve ST              # dictionary only
 python -m finish_the_word --solve ion --mode suffix
+python -m finish_the_word --ban still stalk        # never suggest these again (saved to blocklist.txt)
 python -m finish_the_word --ocr-image prompt.png  # OCR only, on a screenshot
 python -m finish_the_word --preview               # save the capture region to preview.png
 python -m finish_the_word --cli --dry-run         # headless loop
@@ -156,12 +157,13 @@ Created when you first save settings from the GUI. Key options:
 | `turn_invert` | `false` | Act when the indicator is *absent* |
 | `ocr_backend` | `tesseract` | Or `easyocr` (`pip install easyocr`, heavier) |
 | `retry_after` | `3.0` | If the same prompt is still showing after this many seconds, try the next-best word |
+| `auto_ban_rejected` | `false` | If the same prompt is still up after `retry_after` seconds, assume the game rejected the word and ban it permanently |
 | `hotkey` | `F8` | Global start/stop key |
 
 ## How the pieces behave
 
 * **Performance:** each poll compares a tiny thumbnail of the region; OCR only runs when pixels change. Typing happens once per prompt, and the same prompt is not answered again until it changes (or disappears and reappears, or `retry_after` elapses).
-* **Word database:** `data/words.txt` merges two large public dictionaries (web2 + GCIDE), keeps lowercase entries only (no proper nouns), drops vowel-less abbreviations and invalid two-letter strings, and ranks every word by real-world frequency (via `wordfreq`) so the most widely-known valid word is preferred. Add your own words in `custom_words.txt` (one per line) and ban words in `blocklist.txt`. Regenerate the list with `python tools/build_wordlist.py` (needs `requirements-dev.txt`).
+* **Word database:** `data/words.txt` merges two large public dictionaries (web2 + GCIDE), keeps lowercase entries only (no proper nouns), drops vowel-less abbreviations and invalid two-letter strings, and ranks every word by real-world frequency (via `wordfreq`) so the most widely-known valid word is preferred. Add your own words in `custom_words.txt` (one per line) and ban words in `blocklist.txt`. If the game rejects a word, click **Ban last word** in the control panel or run `--ban WORD`; it is removed immediately and written to `blocklist.txt` (turn on `auto_ban_rejected` to do this automatically). Regenerate the list with `python tools/build_wordlist.py` (needs `requirements-dev.txt`).
 * **Used-word cache:** answered words are remembered (`used_words.json`) so they aren't repeated; **Reset used words** clears it.
 * **OCR mistakes:** letters are normalised (`5→s`, `0→o`, `|→l`…); flat frames are ignored; if no word matches, plausible misreads are tried (`rn→m`, `i↔l`, stray edge characters). Low-confidence reads are never typed.
 

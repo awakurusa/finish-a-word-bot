@@ -54,6 +54,7 @@ class WordDB:
 
         self.alpha = sorted(self.zipf)
         self.rev = sorted(w[::-1] for w in self.alpha)
+        self.blocklist_path = blocklist
         self.used: set[str] = set()
         self.used_path = used_path
         self._load_used()
@@ -106,6 +107,37 @@ class WordDB:
                 self.used_path.write_text("[]", encoding="utf-8")
             except OSError:
                 pass
+
+    # ---- banned words ---------------------------------------------------
+    def ban(self, word: str) -> bool:
+        """Never suggest `word` again (e.g. the game rejects it). Takes effect
+        immediately and is saved to the blocklist file. Returns False only if
+        `word` isn't a plain word; banning a word twice is harmless."""
+        word = word.strip().lower()
+        if not word.isalpha():
+            return False
+        if word in self.zipf:
+            del self.zipf[word]
+            i = bisect_left(self.alpha, word)
+            if i < len(self.alpha) and self.alpha[i] == word:
+                del self.alpha[i]
+            r = word[::-1]
+            j = bisect_left(self.rev, r)
+            if j < len(self.rev) and self.rev[j] == r:
+                del self.rev[j]
+        self.used.discard(word)
+        if self.blocklist_path:
+            try:
+                path = self.blocklist_path
+                existing = path.read_text(encoding="utf-8") if path.exists() else ""
+                if word in {ln.strip().lower() for ln in existing.splitlines()}:
+                    return True
+                sep = "" if not existing or existing.endswith("\n") else "\n"
+                with path.open("a", encoding="utf-8") as f:
+                    f.write(f"{sep}{word}\n")
+            except OSError:
+                pass
+        return True
 
     def __contains__(self, word: str) -> bool:
         return word.lower() in self.zipf

@@ -5,6 +5,7 @@
     python -m finish_the_word --preview        save the captured region to preview.png
     python -m finish_the_word --ocr-image F    test OCR alone on an image file
     python -m finish_the_word --solve ST       test dictionary matching alone
+    python -m finish_the_word --ban WORD       never suggest WORD again (saved to blocklist.txt)
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ def main(argv=None) -> int:
     ap.add_argument("--preview", action="store_true", help="save the capture region to preview.png")
     ap.add_argument("--ocr-image", metavar="FILE", help="run OCR on an image file and print the result")
     ap.add_argument("--solve", metavar="LETTERS", help="find a word for these letters")
+    ap.add_argument("--ban", metavar="WORD", nargs="+",
+                    help="add word(s) to blocklist.txt so they are never suggested")
     ap.add_argument("--mode", choices=("prefix", "contains", "suffix", "last_letter"))
     ap.add_argument("--test-keys", action="store_true",
                     help="type test letters with every input method to find the one that works")
@@ -40,7 +43,7 @@ def main(argv=None) -> int:
 
     # Roblox as Administrator silently drops our input unless we are elevated
     # too, so restart elevated automatically (or when --admin is given).
-    tool_mode = args.solve or args.ocr_image or args.preview or args.diagnose or args.test_keys
+    tool_mode = args.ban or args.solve or args.ocr_image or args.preview or args.diagnose or args.test_keys
     if winutil.IS_WINDOWS and not winutil.is_admin() and (
             args.admin or (not tool_mode and winutil.blocked_by_uipi(cfg.window_title))):
         print("Roblox is running as Administrator: restarting this tool as Administrator…")
@@ -87,6 +90,15 @@ def main(argv=None) -> int:
         print("Whichever letters appeared in the game are the methods that work. "
               'Set "typing_backend" in config.json to that one.')
         return 0
+
+    if args.ban:
+        from .dictionary import load_db
+
+        db = load_db(cfg)
+        bad = [w for w in args.ban if not db.ban(w)]
+        for w in args.ban:
+            print(f"{'skipped (not a word)' if w in bad else 'banned'}: {w}")
+        return 1 if bad else 0
 
     if args.solve:
         from .dictionary import load_db
