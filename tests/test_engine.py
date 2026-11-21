@@ -20,11 +20,14 @@ class FakeOCR:
 
 class FakeTyper:
     def __init__(self, ok=True):
-        self.typed, self.skips, self.ok = [], [], ok
+        self.typed, self.skips, self.erases, self.ok = [], [], [], ok
+        self.last_typed_len = 0
 
-    def type_word(self, word, skip=0):
+    def type_word(self, word, skip=0, erase=0):
         self.typed.append(word)
         self.skips.append(skip)
+        self.erases.append(erase)
+        self.last_typed_len = len(word) - skip
         return TypeResult(self.ok, "typed" if self.ok else "no focus")
 
 
@@ -194,7 +197,7 @@ def test_ban_last_word_never_suggested_again(tmp_path):
     eng, ocr, typer = make(db, retry_next_word=False, selection="reliable")
     _run(eng, ocr, "st", 0)
     assert typer.typed == ["still"]
-    assert eng.ban_last_word() == "Banned 'still'"
+    assert eng.ban_last_word().startswith("Banned 'still' and saved")
     assert "still" not in db
     eng2, ocr2, typer2 = make(db, retry_next_word=False, selection="reliable")
     _run(eng2, ocr2, "st", 0)
@@ -211,3 +214,53 @@ def test_auto_ban_rejected_only_when_enabled(tmp_path):
         _run(eng, ocr, "st", 5, n=1)          # 5s later: retry with the next word
         assert typer.typed[0] == "still" and typer.typed[1] != "still"
         assert (("still" not in db) is banned)
+
+
+def test_ban_message_names_the_file_and_reports_failures(tmp_path):
+    db = _fresh_db(tmp_path)
+    eng, ocr, typer = make(db, retry_next_word=False)
+    assert "No word to ban" in eng.ban_last_word()
+    _run(eng, ocr, "st", 0)
+    msg = eng.ban_last_word()
+    assert str(tmp_path / "blocklist.txt") in msg and "saved" in msg
+
+    (tmp_path / "x").mkdir()
+    db2 = _fresh_db(tmp_path / "x")
+    (tmp_path / "x" / "blocklist.txt").mkdir()
+    eng2, ocr2, _ = make(db2, retry_next_word=False)
+    _run(eng2, ocr2, "st", 0)
+    assert "could not save" in eng2.ban_last_word()
+
+
+def test_retry_clock_starts_after_typing_finishes(db):
+    import time
+
+    class SlowTyper(FakeTyper):
+        def type_word(self, word, skip=0, erase=0):
+            time.sleep(0.3)                      # typing itself takes 0.3 s
+            return super().type_word(word, skip, erase)
+
+    eng, ocr, _ = make(db, retry_after=0.2)
+    eng.typer = typer = SlowTyper()
+    _run(eng, ocr, "st", 0)                      # types once (takes 0.3 s)
+    n = len(typer.typed)
+    eng.step(frame(10), now=0.45)                # only 0.15 s after typing ended
+    assert len(typer.typed) == n                 # too early to call it refused
+    eng.step(frame(10), now=0.75)                # 0.45 s after typing ended
+    assert len(typer.typed) == n + 1             # now it tries the next word
+
+
+def test_retry_erases_what_the_previous_attempt_typed(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=1.0)
+    _run(eng, ocr, "st", 0)                      # first word, prompt "st" skipped
+    first_len = typer.last_typed_len
+    assert first_len > 0 and typer.erases == [0]
+    eng.step(frame(10), now=2.0)                 # prompt unchanged: refused -> retry
+    assert typer.erases == [0, first_len]
+
+
+def test_retry_does_not_erase_when_disabled(db):
+    eng, ocr, typer = make(db, selection="reliable", retry_after=1.0, clear_before_retry=False)
+    _run(eng, ocr, "st", 0)
+    eng.step(frame(10), now=2.0)
+    assert typer.erases == [0, 0]

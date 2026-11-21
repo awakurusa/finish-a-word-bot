@@ -304,7 +304,11 @@ class App:
             self.v_status.set("Could not restart as Administrator (prompt declined?)")
 
     def _ban_last(self) -> None:
-        self.v_status.set(self.engine.ban_last_word())
+        msg = self.engine.ban_last_word()
+        self.v_status.set(msg)
+        # The status line is overwritten within a fraction of a second, so say it in a dialog.
+        (messagebox.showwarning if ("could not" in msg or msg.startswith("No word"))
+         else messagebox.showinfo)("Ban last word", msg)
 
     def _reset_used(self) -> None:
         self.engine.db.reset_used()

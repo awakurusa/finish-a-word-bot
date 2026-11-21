@@ -97,11 +97,19 @@ class Config:
     change_threshold: float = 2.0       # mean pixel diff that counts as "changed"
     stable_reads: int = 2               # identical consecutive reads required
     clear_reads: int = 3                # empty reads that re-arm the same prompt
-    retry_after: float = 3.0            # seconds before trying another word
+    # If the prompt is unchanged this many seconds after we finished typing, the
+    # game probably refused the word (e.g. an opponent already used it), so try
+    # the next-best one. Refused words are remembered as used and never retried.
+    retry_after: float = 1.5
     retry_next_word: bool = True        # try another word if prompt doesn't change
-    # When the same prompt is still up after retry_after seconds, assume the game
-    # rejected the word we typed and ban it for good (saved to blocklist.txt).
+    # Also ban the refused word FOR GOOD (blocklist.txt). Only turn this on if the
+    # game refuses words because they are invalid. Words refused because an
+    # opponent used them are fine in other rounds, so leave it off for those.
     auto_ban_rejected: bool = False
+    # The game leaves a refused word in the box, so before typing the next word
+    # press Backspace once per letter the bot typed. Set False if your game
+    # clears the box itself.
+    clear_before_retry: bool = True
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 
     # --------------------------------------------------------------------

@@ -55,6 +55,7 @@ class WordDB:
         self.alpha = sorted(self.zipf)
         self.rev = sorted(w[::-1] for w in self.alpha)
         self.blocklist_path = blocklist
+        self.ban_error = ""             # why the last ban could not be saved, if so
         self.used: set[str] = set()
         self.used_path = used_path
         self._load_used()
@@ -126,6 +127,7 @@ class WordDB:
             if j < len(self.rev) and self.rev[j] == r:
                 del self.rev[j]
         self.used.discard(word)
+        self.ban_error = ""
         if self.blocklist_path:
             try:
                 path = self.blocklist_path
@@ -135,8 +137,8 @@ class WordDB:
                 sep = "" if not existing or existing.endswith("\n") else "\n"
                 with path.open("a", encoding="utf-8") as f:
                     f.write(f"{sep}{word}\n")
-            except OSError:
-                pass
+            except OSError as e:
+                self.ban_error = f"{type(e).__name__}: {e}"
         return True
 
     def __contains__(self, word: str) -> bool:

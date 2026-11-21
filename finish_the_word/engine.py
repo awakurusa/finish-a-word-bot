@@ -141,10 +141,12 @@ class Engine:
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
-            self._submit(text, now)  # same prompt still up: answer was rejected?
+            self._emit(status=f"'{self._last_typed}' seems refused; trying another word…")
+            erase = getattr(self.typer, "last_typed_len", 0) if cfg.clear_before_retry else 0
+            self._submit(text, now, erase=erase)  # same prompt still up: answer was rejected?
         # else: already answered this prompt; wait for it to change
 
-    def _submit(self, text: str, now: float) -> None:
+    def _submit(self, text: str, now: float, erase: int = 0) -> None:
         sol = self.db.solve(text, self.cfg, exclude=self._attempted)
         if not sol.word:
             self._submitted_prompt, self._submitted_at = text, now
@@ -152,12 +154,15 @@ class Engine:
             return
         self._emit(word=sol.word, corrected=sol.corrected, alternatives=sol.alternatives,
                    status=f"Typing '{sol.word}'…")
-        result = self.typer.type_word(sol.word, skip=self._already_shown(sol))
+        t0 = time.monotonic()
+        result = self.typer.type_word(sol.word, skip=self._already_shown(sol), erase=erase)
+        typing_time = time.monotonic() - t0
         if result.ok:
             self._attempted.add(sol.word)
             self._last_typed = sol.word
             self.db.mark_used(sol.word)
-            self._submitted_prompt, self._submitted_at = text, now
+            # time the game's reaction from when typing FINISHED, not when it began
+            self._submitted_prompt, self._submitted_at = text, now + typing_time
         # on failure leave the prompt un-submitted so the next poll retries
         self._emit(status=result.message)
 
@@ -176,10 +181,17 @@ class Engine:
         """Permanently ban a word; returns a status line."""
         word = word.strip().lower()
         if not word.isalpha():
-            return "Nothing to ban"
+            return "No word to ban yet: the bot hasn't typed one"
         self.db.ban(word)
         self._attempted.add(word)
-        msg = f"Banned '{word}'"
+        path = self.db.blocklist_path
+        if self.db.ban_error:
+            msg = (f"Banned '{word}' for this session only; could not save it to "
+                   f"{path}: {self.db.ban_error}")
+        elif path:
+            msg = f"Banned '{word}' and saved it to {path}"
+        else:
+            msg = f"Banned '{word}' for this session (no blocklist file configured)"
         self._emit(status=msg)
         return msg
 

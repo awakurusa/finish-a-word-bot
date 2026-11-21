@@ -56,7 +56,7 @@ class FakeTyper:
     def __init__(self):
         self.typed = []
 
-    def type_word(self, w, skip=0):
+    def type_word(self, w, skip=0, erase=0):
         from finish_the_word.typer import TypeResult
         self.typed.append(w)
         return TypeResult(True)
@@ -88,6 +88,7 @@ class RecordingKB:
     def press_char(self, c): self.events.append(("char", c))
     def press_key(self, k): self.events.append(("key", k))
     def press_enter(self): self.events.append(("enter",))
+    def press_backspace(self): self.events.append(("backspace",))
 
 
 def make_typer(**kw):
@@ -237,3 +238,18 @@ def test_typer_skip_never_swallows_the_whole_word():
     t = make_typer()
     assert t.type_word("ab", skip=5).ok
     assert t._kb.events == [("char", "b"), ("enter",)]
+
+
+def test_typer_erases_a_refused_word_before_retyping():
+    t = make_typer()
+    assert t.type_word("still", skip=2).ok and t.last_typed_len == 3     # typed "ill"
+    t._kb.events.clear()
+    assert t.type_word("stick", skip=2, erase=t.last_typed_len).ok
+    assert t._kb.events == [("backspace",)] * 3 + [("char", "i"), ("char", "c"),
+                                                   ("char", "k"), ("enter",)]
+
+
+def test_typer_without_erase_does_not_backspace():
+    t = make_typer()
+    assert t.type_word("ab").ok
+    assert ("backspace",) not in t._kb.events
