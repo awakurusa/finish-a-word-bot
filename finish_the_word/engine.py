@@ -176,10 +176,17 @@ class Engine:
         """Permanently ban a word; returns a status line."""
         word = word.strip().lower()
         if not word.isalpha():
-            return "Nothing to ban"
+            return "No word to ban yet: the bot hasn't typed one"
         self.db.ban(word)
         self._attempted.add(word)
-        msg = f"Banned '{word}'"
+        path = self.db.blocklist_path
+        if self.db.ban_error:
+            msg = (f"Banned '{word}' for this session only; could not save it to "
+                   f"{path}: {self.db.ban_error}")
+        elif path:
+            msg = f"Banned '{word}' and saved it to {path}"
+        else:
+            msg = f"Banned '{word}' for this session (no blocklist file configured)"
         self._emit(status=msg)
         return msg
 

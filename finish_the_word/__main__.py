@@ -98,7 +98,10 @@ def main(argv=None) -> int:
         bad = [w for w in args.ban if not db.ban(w)]
         for w in args.ban:
             print(f"{'skipped (not a word)' if w in bad else 'banned'}: {w}")
-        return 1 if bad else 0
+        if len(bad) < len(args.ban):
+            print(f"blocklist file: {db.blocklist_path}"
+                  + (f"  (COULD NOT SAVE: {db.ban_error})" if db.ban_error else ""))
+        return 1 if bad or db.ban_error else 0
 
     if args.solve:
         from .dictionary import load_db

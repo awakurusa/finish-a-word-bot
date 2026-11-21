@@ -150,3 +150,10 @@ def test_ban_twice_and_junk(tmp_path):
 def test_ban_without_a_blocklist_file_still_works_in_memory(tmp_path):
     db, _ = _small_db(tmp_path, with_file=False)
     assert db.ban("still") and "still" not in db
+
+
+def test_ban_reports_when_the_file_cannot_be_written(tmp_path):
+    db, block = _small_db(tmp_path)
+    block.mkdir()                                  # a directory: reading/writing it fails
+    assert db.ban("still") and "still" not in db   # still banned for this session
+    assert db.ban_error

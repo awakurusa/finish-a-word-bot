@@ -194,7 +194,7 @@ def test_ban_last_word_never_suggested_again(tmp_path):
     eng, ocr, typer = make(db, retry_next_word=False, selection="reliable")
     _run(eng, ocr, "st", 0)
     assert typer.typed == ["still"]
-    assert eng.ban_last_word() == "Banned 'still'"
+    assert eng.ban_last_word().startswith("Banned 'still' and saved")
     assert "still" not in db
     eng2, ocr2, typer2 = make(db, retry_next_word=False, selection="reliable")
     _run(eng2, ocr2, "st", 0)
@@ -211,3 +211,19 @@ def test_auto_ban_rejected_only_when_enabled(tmp_path):
         _run(eng, ocr, "st", 5, n=1)          # 5s later: retry with the next word
         assert typer.typed[0] == "still" and typer.typed[1] != "still"
         assert (("still" not in db) is banned)
+
+
+def test_ban_message_names_the_file_and_reports_failures(tmp_path):
+    db = _fresh_db(tmp_path)
+    eng, ocr, typer = make(db, retry_next_word=False)
+    assert "No word to ban" in eng.ban_last_word()
+    _run(eng, ocr, "st", 0)
+    msg = eng.ban_last_word()
+    assert str(tmp_path / "blocklist.txt") in msg and "saved" in msg
+
+    (tmp_path / "x").mkdir()
+    db2 = _fresh_db(tmp_path / "x")
+    (tmp_path / "x" / "blocklist.txt").mkdir()
+    eng2, ocr2, _ = make(db2, retry_next_word=False)
+    _run(eng2, ocr2, "st", 0)
+    assert "could not save" in eng2.ban_last_word()
