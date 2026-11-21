@@ -175,3 +175,39 @@ def test_blank_pattern_types_whole_word(db):
     for i in range(4):
         eng.step(frame(10), now=i * 0.1)
     assert typer.typed and typer.skips == [0]
+
+
+def _fresh_db(tmp_path):
+    words = tmp_path / "words.txt"
+    words.write_text("stand\t4.0\nstill\t5.0\nstick\t4.5\n", encoding="utf-8")
+    return WordDB(path=words, blocklist=tmp_path / "blocklist.txt")
+
+
+def _run(eng, ocr, text, t0, n=4):
+    ocr.text = text
+    for i in range(n):
+        eng.step(frame(10), now=t0 + i * 0.1)
+
+
+def test_ban_last_word_never_suggested_again(tmp_path):
+    db = _fresh_db(tmp_path)
+    eng, ocr, typer = make(db, retry_next_word=False, selection="reliable")
+    _run(eng, ocr, "st", 0)
+    assert typer.typed == ["still"]
+    assert eng.ban_last_word() == "Banned 'still'"
+    assert "still" not in db
+    eng2, ocr2, typer2 = make(db, retry_next_word=False, selection="reliable")
+    _run(eng2, ocr2, "st", 0)
+    assert typer2.typed == ["stick"]
+
+
+def test_auto_ban_rejected_only_when_enabled(tmp_path):
+    for flag, banned in ((True, True), (False, False)):
+        folder = tmp_path / f"flag_{flag}"
+        folder.mkdir()
+        db = _fresh_db(folder)
+        eng, ocr, typer = make(db, selection="reliable", auto_ban_rejected=flag, retry_after=3.0)
+        _run(eng, ocr, "st", 0)               # types "still", prompt never changes
+        _run(eng, ocr, "st", 5, n=1)          # 5s later: retry with the next word
+        assert typer.typed[0] == "still" and typer.typed[1] != "still"
+        assert (("still" not in db) is banned)
