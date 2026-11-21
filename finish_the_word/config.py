@@ -56,6 +56,10 @@ class Config:
     # "sendinput" (hardware scan codes, works with Roblox) | "pydirectinput" | "pyautogui"
     typing_backend: str = "sendinput"
     auto_focus_roblox: bool = True      # bring Roblox to the front before typing
+    # If Windows won't switch focus, click on the Roblox window (title bar if it
+    # has one, else a harmless spot) so it becomes the active window.
+    click_to_focus: bool = True
+    focus_click_pos: list | None = None  # [x, y] override for that click
     input_pos: list | None = None       # [x, y] of the answer box; None = skip click
     focus_key: str = ""                 # e.g. "/" to focus Roblox chat
     typing_delay: float = 0.03          # seconds between keystrokes

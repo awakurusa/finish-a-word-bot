@@ -112,6 +112,38 @@ def focus_window(title: str) -> bool:
     return False
 
 
+def focus_click_points(title: str) -> list[tuple[int, int]]:
+    """Safe screen points to click so the Roblox window becomes active, best
+    first, keeping only points where Roblox is really the window on top (not
+    the control panel or another window sitting over it)."""
+    if not IS_WINDOWS:
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    hwnd = find_hwnd(title)
+    if hwnd is None:
+        return []
+    win, cl = wintypes.RECT(), wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(win))
+    user32.GetClientRect(hwnd, ctypes.byref(cl))
+    pt = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    cw, ch = cl.right - cl.left, cl.bottom - cl.top
+    cx = pt.x + cw // 2
+    candidates = []
+    if pt.y - win.top > 12:                       # a real title bar exists
+        candidates.append((cx, win.top + (pt.y - win.top) // 2))
+    candidates += [(cx, pt.y + 6), (pt.x + cw // 2, pt.y + ch // 2)]  # in-game: top edge, centre
+    ok = []
+    for x, y in candidates:
+        top = user32.GetAncestor(user32.WindowFromPoint(wintypes.POINT(x, y)), 2)  # GA_ROOT
+        if top == hwnd:
+            ok.append((x, y))
+    return ok
+
+
 def key_down(name: str) -> bool:
     """True while the named key (e.g. 'F8') is physically held. Windows only."""
     if not IS_WINDOWS:

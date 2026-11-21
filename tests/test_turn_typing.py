@@ -120,14 +120,53 @@ def test_typer_reports_failures_instead_of_crashing():
 
 def test_typer_auto_focuses_roblox(monkeypatch):
     t = make_typer()
-    calls = []
+    calls, fg = [], {"t": "Claude"}
     monkeypatch.setattr(winutil, "IS_WINDOWS", True)
-    monkeypatch.setattr(winutil, "foreground_title", lambda: "Claude")
-    monkeypatch.setattr(winutil, "focus_window", lambda title: calls.append(title) or True)
+    monkeypatch.setattr(winutil, "foreground_title", lambda: fg["t"])
+    monkeypatch.setattr(winutil, "focus_click_points", lambda title: [])
+
+    def focus(title):
+        calls.append(title)
+        fg["t"] = "Roblox"
+        return True
+    monkeypatch.setattr(winutil, "focus_window", focus)
     assert t.type_word("ab").ok and calls == ["Roblox"]
+    fg["t"] = "Claude"
     monkeypatch.setattr(winutil, "focus_window", lambda title: False)
     r = t.type_word("ab")
     assert not r.ok and "Roblox" in r.message
+
+
+def test_clicks_roblox_window_when_focus_switch_fails(monkeypatch):
+    t = make_typer()
+    state = {"fg": "Claude"}
+    monkeypatch.setattr(winutil, "IS_WINDOWS", True)
+    monkeypatch.setattr(winutil, "foreground_title", lambda: state["fg"])
+    monkeypatch.setattr(winutil, "focus_window", lambda title: False)   # Windows refuses
+    monkeypatch.setattr(winutil, "focus_click_points", lambda title: [(100, 10), (500, 400)])
+
+    def click(x, y):
+        t._kb.events.append(("click", x, y))
+        if (x, y) == (500, 400):          # first spot misses, second activates Roblox
+            state["fg"] = "Roblox"
+    t._kb.click = click
+    assert t.type_word("ab").ok
+    assert t._kb.events[:2] == [("click", 100, 10), ("click", 500, 400)]
+    assert ("click", 500, 400) in t._kb.events and t._kb.events[-3:] == [
+        ("char", "a"), ("char", "b"), ("enter",)]
+
+
+def test_no_click_when_already_focused_or_disabled(monkeypatch):
+    t = make_typer()
+    monkeypatch.setattr(winutil, "IS_WINDOWS", True)
+    monkeypatch.setattr(winutil, "foreground_title", lambda: "Roblox")
+    assert t.type_word("ab").ok
+    assert not any(e[0] == "click" for e in t._kb.events)      # no answer box, no click
+    t2 = make_typer(click_to_focus=False)
+    monkeypatch.setattr(winutil, "foreground_title", lambda: "Claude")
+    monkeypatch.setattr(winutil, "focus_window", lambda title: False)
+    r = t2.type_word("ab")
+    assert not r.ok and t2._kb.events == []
 
 
 def test_default_backend_is_scancode_sendinput():

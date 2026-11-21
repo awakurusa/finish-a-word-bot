@@ -67,14 +67,31 @@ class Typer:
 
     def _ensure_focus(self) -> str | None:
         """Make Roblox the active window. Returns an error message or None."""
+        cfg = self.cfg
         if not winutil.IS_WINDOWS or self.roblox_focused():
             return None
-        if self.cfg.auto_focus_roblox and winutil.focus_window(self.cfg.window_title):
-            time.sleep(0.12)
-            return None
-        if self.cfg.require_roblox_focus:
-            return (f"Could not switch to the '{self.cfg.window_title}' window "
-                    f"(is it open? is the title right?)")
+        if cfg.auto_focus_roblox:
+            winutil.focus_window(cfg.window_title)      # polite: ask Windows
+            if self.roblox_focused():
+                time.sleep(0.12)
+                return None
+        if cfg.click_to_focus:                          # firm: click the window
+            points = ([tuple(cfg.focus_click_pos)] if cfg.focus_click_pos
+                      else winutil.focus_click_points(cfg.window_title))
+            try:
+                kb = self._backend()
+                for x, y in points:
+                    kb.click(x, y)
+                    for _ in range(8):
+                        time.sleep(0.05)
+                        if self.roblox_focused():
+                            time.sleep(0.1)
+                            return None
+            except Exception as e:
+                return f"Could not click the Roblox window: {type(e).__name__}: {e}"
+        if cfg.require_roblox_focus:
+            return (f"Could not switch to the '{cfg.window_title}' window "
+                    f"(is it open, visible and not minimised? is the title right?)")
         return None
 
     def type_word(self, word: str) -> TypeResult:

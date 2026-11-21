@@ -14,7 +14,7 @@ screen region ──► capture.py ──► ocr.py ──► dictionary.py ─�
 | `ocr.py` | Reads the prompt: letter tiles first (`tiles.py`), else Tesseract/EasyOCR text OCR; cleans up mistakes |
 | `tiles.py` | Finds the game's white letter tiles and identifies each letter by template matching |
 | `dictionary.py` | Matches letters against a ~215,000-word list, ranks, caches used words |
-| `typer.py` | Focuses the answer box, types the word, presses Enter |
+| `typer.py` | Makes Roblox the active window (clicking it if needed), types the word, presses Enter |
 | `engine.py` | Ties them together; only acts when the prompt actually changes |
 | `gui.py` | Control panel: start/stop, preview, readouts, manual test, region picker |
 
@@ -41,7 +41,7 @@ pip install -r requirements.txt
 1. Open Roblox in **windowed or borderless-fullscreen** mode (true exclusive fullscreen can't be captured reliably) and get to a round where the letter prompt is visible.
 2. In the control panel click **Select region…** and drag a box around *only* the letter prompt: no usernames, chat, or timers. A little padding is fine.
 3. Click **Refresh preview**. The top image is what was captured; the bottom is what the OCR engine sees. *Detected letters* and *Confidence* update below. Adjust the box until the letters read cleanly.
-4. Click **Pick (hover box, 3s)** and hover over the game's answer box. It will be clicked before each answer. If the game focuses the box automatically, or you use a chat key, leave it unset and set `focus_key` (e.g. `"/"`) in `config.json`.
+4. Finish the Word has no answer box: you just type. Leave **Pick** alone (it's only for games that have a box). Before typing, the bot makes Roblox the active window by itself: it asks Windows first and, if that's refused, **clicks the Roblox window** (its title bar, or a harmless spot at the top of the game view). Set `click_to_focus` to `false` to disable the click, or `focus_click_pos` (`[x, y]`) to choose the spot.
 5. Choose **Match mode** (see below) and tick **Dry run** for a first test: it shows the word it *would* type without pressing keys.
 6. Untick Dry run, click **Start** (or press **F8** from inside the game) and press **F8** again to stop. Moving the mouse into a screen corner also aborts PyAutoGUI.
 
@@ -78,7 +78,7 @@ python tools/build_templates.py row1.png GABCDEFGHIJKLMNOP row2.png QRSTUVWXYZ
 
 ## Fully automatic play: knowing it's your turn
 
-Without a turn check the bot answers whenever it can read a prompt. To make it answer **only on your turn**, point it at whatever the game shows when it's your turn (a "Your turn" label, a glowing/colored bar, your name highlighted, the answer box appearing):
+Without a turn check the bot answers whenever it can read a prompt. To make it answer **only on your turn**, point it at whatever the game shows when it's your turn (a "Your turn" label, a glowing/colored bar, your name highlighted, a prompt that only appears on your turn):
 
 1. Wait until it is **not** your turn. Click **Select turn indicator…** and drag a box tightly around that indicator's spot.
 2. When it **is** your turn, click **Learn 'my turn' color** (color mode), or set *Turn check* to `text` and type the words the game shows (e.g. `your turn`).
@@ -93,7 +93,7 @@ Look at the **Status** line in the panel after a word is chosen; it says exactly
 
 * *"Could not switch to the 'Roblox' window"*: Roblox isn't open or its window title differs; set `window_title`.
 * *"SendInput was blocked"*: Roblox is running as Administrator. Run the terminal/PowerShell as Administrator too.
-* *"Typed 'word'" but nothing appears*: the click on the answer box missed or the chat/answer box needs a different way to focus. Re-do **Pick (hover box, 3s)** with the mouse exactly on the box, or clear it and set `focus_key` (e.g. `"/"`). Try **Find & type (3s)** to test typing alone.
+* *"Typed 'word'" but nothing appears*: Roblox had focus but ignored the keys. Make sure no chat box is capturing input, and if your game needs a key to start typing, set `focus_key` (e.g. `"/"`). Try **Find & type (3s)** to test typing alone.
 * *"[dry run] would type"*: untick **Dry run**.
 * Roblox must be windowed or borderless; screen capture and clicks don't work in exclusive fullscreen.
 
