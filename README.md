@@ -89,7 +89,7 @@ While it isn't your turn the bot keeps watching but never types, and it re-arms 
 
 ## If Roblox is running as Administrator
 
-Windows silently discards keystrokes and clicks sent by a normal program to an Administrator program. Then everything *looks* fine (the status says "Typed") but Roblox never receives anything. Fix: run this tool as Administrator too.
+The tool restarts itself as Administrator automatically when it sees Roblox running that way (accept the Windows prompt), and the control panel has a **Restart as admin** button. Windows silently discards keystrokes and clicks sent by a normal program to an Administrator program. Then everything *looks* fine (the status says "Typed") but Roblox never receives anything. Fix: run this tool as Administrator too.
 
 * Double-click **`run_as_admin.bat`** (accept the Windows prompt), or
 * open PowerShell as Administrator and run `.venv\Scripts\python -m finish_the_word`, or

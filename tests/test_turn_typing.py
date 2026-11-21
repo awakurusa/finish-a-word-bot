@@ -195,3 +195,32 @@ def test_diagnose_is_safe_off_windows(capsys):
     from finish_the_word import diagnose
     assert diagnose.run(Config()) == 0
     assert "only works on Windows" in capsys.readouterr().out
+
+
+def test_config_saves_only_non_defaults_and_defaults_propagate(tmp_path):
+    from finish_the_word.config import CONFIG_VERSION
+    path = tmp_path / "config.json"
+    c = Config(); c.press_enter = False; c.region = [1, 2, 300, 100]
+    c.save(path)
+    import json
+    data = json.loads(path.read_text())
+    assert data == {"region": [1, 2, 300, 100], "press_enter": False, "config_version": CONFIG_VERSION}
+    assert Config.load(path).press_enter is False
+
+
+def test_old_config_with_stale_defaults_is_migrated(tmp_path):
+    import json
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"typing_backend": "pyautogui", "typing_delay": 0.03,
+                                "selection": "reliable", "min_confidence": 50.0,
+                                "region": [5, 5, 50, 50], "press_enter": False}))
+    c = Config.load(path)
+    assert c.typing_backend == "sendinput" and c.selection == "hard_ending"
+    assert c.region == [5, 5, 50, 50] and c.press_enter is False   # real choices kept
+
+
+def test_current_version_config_keeps_explicit_choice(tmp_path):
+    import json
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"config_version": 2, "typing_backend": "pyautogui"}))
+    assert Config.load(path).typing_backend == "pyautogui"

@@ -35,19 +35,22 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="never press keys")
     args = ap.parse_args(argv)
 
-    if args.admin and winutil.IS_WINDOWS and not winutil.is_admin():
-        import ctypes
-
-        rest = " ".join(f'"{a}"' for a in (argv if argv is not None else sys.argv[1:]) if a != "--admin")
-        rc = ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", sys.executable, f"-m finish_the_word {rest}", str(ROOT), 1)
-        if rc <= 32:
-            print("Could not start as Administrator (was the prompt declined?)")
-            return 1
-        return 0
-
     winutil.enable_dpi_awareness()
     cfg = Config.load()
+
+    # Roblox as Administrator silently drops our input unless we are elevated
+    # too, so restart elevated automatically (or when --admin is given).
+    tool_mode = args.solve or args.ocr_image or args.preview or args.diagnose or args.test_keys
+    if winutil.IS_WINDOWS and not winutil.is_admin() and (
+            args.admin or (not tool_mode and winutil.blocked_by_uipi(cfg.window_title))):
+        print("Roblox is running as Administrator: restarting this tool as Administrator…")
+        rest = [a for a in (argv if argv is not None else sys.argv[1:]) if a != "--admin"]
+        if winutil.relaunch_as_admin(rest):
+            return 0
+        print("Could not start as Administrator (was the Windows prompt declined?).")
+        if args.admin:
+            return 1
+
     if args.mode:
         cfg.match_mode = args.mode
     if args.dry_run:

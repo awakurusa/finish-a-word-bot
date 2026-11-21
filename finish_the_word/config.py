@@ -9,6 +9,11 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
 WORDLIST_PATH = ROOT / "data" / "words.txt"
 
+CONFIG_VERSION = 2
+# Defaults that older versions wrote into config.json and that have since improved.
+_V1_DEFAULTS = {"typing_backend": "pyautogui", "typing_delay": 0.03, "selection": "reliable",
+                "min_confidence": 50.0}
+
 
 @dataclass
 class Config:
@@ -94,7 +99,13 @@ class Config:
 
     # --------------------------------------------------------------------
     def save(self, path: Path = CONFIG_PATH) -> None:
-        path.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        """Write only values that differ from the defaults, so later changes
+        to the defaults reach existing users instead of being masked by an old
+        full copy of the settings."""
+        default = asdict(Config())
+        data = {k: v for k, v in asdict(self).items() if v != default[k]}
+        data["config_version"] = CONFIG_VERSION
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> "Config":
@@ -104,6 +115,11 @@ class Config:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 return cfg
+            if data.get("config_version", 1) < CONFIG_VERSION:
+                # Files written by v1 stored a full copy of the old defaults.
+                for key, old_default in _V1_DEFAULTS.items():
+                    if data.get(key) == old_default:
+                        data.pop(key)
             known = {f.name for f in fields(cls)}
             for k, v in data.items():
                 if k in known:

@@ -47,6 +47,7 @@ class App:
 
         self._photos = {}
         self._shown_frame = None
+        self._asked_admin = False
         self._build()
         self.root.protocol("WM_DELETE_WINDOW", self._close)
         self.root.after(80, self._poll)
@@ -62,6 +63,8 @@ class App:
         self.btn.pack(side="left")
         ttk.Button(top, text="Refresh preview", command=self._refresh_preview).pack(side="left", padx=6)
         ttk.Button(top, text="Reset used words", command=self._reset_used).pack(side="left")
+        if winutil.IS_WINDOWS and not winutil.is_admin():
+            ttk.Button(top, text="Restart as admin", command=self._restart_admin).pack(side="left", padx=6)
 
         # preview
         pv = ttk.LabelFrame(r, text="OCR preview (captured region / what OCR sees)")
@@ -293,6 +296,12 @@ class App:
         if self._apply(save=True):
             self.engine.toggle()
 
+    def _restart_admin(self) -> None:
+        if winutil.relaunch_as_admin([]):
+            self._close()
+        else:
+            self.v_status.set("Could not restart as Administrator (prompt declined?)")
+
     def _reset_used(self) -> None:
         self.engine.db.reset_used()
         self.v_status.set("Used-word cache cleared")
@@ -348,6 +357,13 @@ class App:
             self.v_word.set((s.word + (" (corrected)" if s.corrected else "")) if s.word else "-")
             self.v_alt.set(", ".join(s.alternatives))
             self.v_status.set(s.status)
+            if "Administrator" in s.status and not self._asked_admin:
+                self._asked_admin = True
+                if messagebox.askyesno(
+                        "Administrator needed",
+                        "Roblox is running as Administrator, so Windows blocks this tool's "
+                        "keystrokes.\n\nRestart this tool as Administrator now?"):
+                    self._restart_admin()
             self.v_turn_state.set({True: "YES", False: "no", None: "not checked"}[s.my_turn])
             self.btn.config(text=(f"Stop ({self.cfg.hotkey})" if self.engine.running
                                   else f"Start ({self.cfg.hotkey})"))

@@ -208,6 +208,21 @@ def blocked_by_uipi(title: str) -> bool:
         return False
 
 
+def relaunch_as_admin(args: list[str]) -> bool:
+    """Start this program again elevated (shows the Windows UAC prompt).
+    True if the prompt was accepted and the new process launched."""
+    if not IS_WINDOWS:
+        return False
+    import ctypes
+    import sys
+    from pathlib import Path
+
+    root = str(Path(__file__).resolve().parent.parent)
+    params = " ".join(['-m', 'finish_the_word'] + [f'"{a}"' for a in args])
+    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, root, 1)
+    return rc > 32
+
+
 def key_down(name: str) -> bool:
     """True while the named key (e.g. 'F8') is physically held. Windows only."""
     if not IS_WINDOWS:
