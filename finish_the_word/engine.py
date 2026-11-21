@@ -177,7 +177,8 @@ class Engine:
         erase = 0
         if (self.cfg.clear_before_retry and self._dirty_at is not None
                 and now - self._dirty_at <= self.cfg.erase_window):
-            erase = getattr(self.typer, "last_typed_len", 0)
+            # more presses than letters typed: the prompt itself can't be erased
+            erase = getattr(self.typer, "last_typed_len", 0) + self.cfg.erase_extra
         debuglog.log(f"submit prompt='{text}' word='{sol.word}' erase={erase} "
                      f"(last typed {'never' if self._dirty_at is None else f'{now - self._dirty_at:.1f}s ago'}, "
                      f"last_typed_len={getattr(self.typer, 'last_typed_len', '?')})")

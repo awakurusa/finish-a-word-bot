@@ -29,7 +29,7 @@ class _PyAutoGuiKeyboard:
     def press_enter(self):
         self.g.press("enter")
 
-    def press_backspace(self):
+    def press_backspace(self, hold=None):
         self.g.press("backspace")
 
     def press_key(self, name):
@@ -106,7 +106,7 @@ class Typer:
         """Type `word`. The first `skip` letters are not typed because the game
         already shows them (the prompt); the rest and Enter are. `erase` presses
         Backspace that many times first, to clear a refused word the game left
-        in the box."""
+        in the box (the game never deletes the prompt, so too many is harmless)."""
         cfg = self.cfg
         if not word or not word.isalpha():
             return TypeResult(False, "Refusing to type an invalid word")
@@ -135,7 +135,7 @@ class Typer:
                          f"letters '{to_type}', enter={cfg.press_enter}")
             if erase > 0:
                 for _ in range(erase):
-                    kb.press_backspace()
+                    kb.press_backspace(cfg.erase_hold)
                     if cfg.erase_delay > 0:
                         time.sleep(cfg.erase_delay)
                 if cfg.erase_pause > 0:     # let the game register the deletion before typing
@@ -153,5 +153,5 @@ class Typer:
             return TypeResult(False, f"Typing library missing: {e.name}")
         except Exception as e:  # incl. pyautogui.FailSafeException
             return TypeResult(False, f"Typing failed: {type(e).__name__}: {e}")
-        erased = f", after erasing {erase} letter{'s' if erase != 1 else ''}" if erase > 0 else ""
+        erased = f", after {erase} backspace{'s' if erase != 1 else ''}" if erase > 0 else ""
         return TypeResult(True, f"Typed {shown}{erased}")

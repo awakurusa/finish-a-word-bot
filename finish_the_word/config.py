@@ -110,13 +110,16 @@ class Config:
     # press Backspace once per letter the bot typed. Set False if your game
     # clears the box itself.
     clear_before_retry: bool = True
-    erase_delay: float = 0.06           # seconds between Backspace presses
-    erase_pause: float = 0.4            # pause after erasing, before typing the next word
-    # Only erase if the bot last typed this recently (seconds). A refusal shows up
-    # within a couple of seconds; later than that the box is probably fresh (the
-    # word was accepted), and erasing would eat the prompt letters. Lower it if
-    # your game's turns are fast and you have no turn indicator set up.
-    erase_window: float = 6.0
+    erase_delay: float = 0.015          # seconds between Backspace presses
+    erase_hold: float = 0.03            # how long each Backspace stays down (Roblox needs ~2 frames)
+    erase_pause: float = 0.15           # pause after erasing, before typing the next word
+    # Press this many MORE Backspaces than letters typed. The game won't delete the
+    # prompt letters, so extra presses are harmless and cover a miscount or a
+    # dropped keystroke.
+    erase_extra: int = 3
+    # Only erase if the bot last typed this recently (seconds); a fresh turn
+    # doesn't need it.
+    erase_window: float = 20.0
     debug_log: bool = True              # write ftw_debug.log (what was read/decided/pressed)
     hotkey: str = "F8"                  # global start/stop toggle (Windows)
 

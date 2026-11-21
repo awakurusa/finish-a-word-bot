@@ -256,7 +256,7 @@ def test_retry_erases_what_the_previous_attempt_typed(db):
     first_len = typer.last_typed_len
     assert first_len > 0 and typer.erases == [0]
     eng.step(frame(10), now=2.0)                 # prompt unchanged: refused -> retry
-    assert typer.erases == [0, first_len]
+    assert typer.erases == [0, first_len + eng.cfg.erase_extra]
 
 
 def test_retry_does_not_erase_when_disabled(db):
@@ -274,7 +274,7 @@ def test_erases_even_when_prompt_flickers_away_and_comes_back(db):
     for i in range(4):
         eng.step(frame(200 + i), now=1 + i * 0.1)
     _run(eng, ocr, "st", 2)                      # same prompt returns: "new" prompt branch
-    assert len(typer.typed) == 2 and typer.erases == [0, first_len]
+    assert len(typer.typed) == 2 and typer.erases == [0, first_len + eng.cfg.erase_extra]
 
 
 def test_no_erase_after_the_other_players_turn(db):
@@ -319,3 +319,12 @@ def test_debug_log_records_reads_decisions_and_erase(db, tmp_path):
     text = debuglog._PATH.read_text(encoding="utf-8")
     assert "read 'st'" in text and "submit prompt='st'" in text
     assert "treating as refused" in text and f"erase={typer.erases[1]}" in text
+
+
+def test_erases_more_backspaces_than_letters_typed(db):
+    for extra in (0, 5):
+        eng, ocr, typer = make(db, selection="reliable", retry_after=1.0, erase_extra=extra)
+        _run(eng, ocr, "st", 0)
+        typed_letters = typer.last_typed_len
+        eng.step(frame(10), now=2.0)             # refused -> retry
+        assert typer.erases[1] == typed_letters + extra

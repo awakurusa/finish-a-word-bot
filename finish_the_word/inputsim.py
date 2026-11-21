@@ -79,14 +79,14 @@ class ScanCodeKeyboard:
         vk = user32.VkKeyScanW(ord(ch)) & 0xFF
         return vk, user32.MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)
 
-    def _tap(self, vk: int, scan: int) -> None:
+    def _tap(self, vk: int, scan: int, hold: float | None = None) -> None:
         if scan == 0 and not self.use_vk:
             raise RuntimeError("No scan code for this key on your keyboard layout")
         if not _send(_key_event(vk, scan, False, self.use_vk)):
             err = ctypes.GetLastError()
             raise RuntimeError(f"SendInput was blocked (error {err}). If Roblox runs as "
                                "Administrator, run this tool as Administrator too")
-        time.sleep(self.hold)
+        time.sleep(self.hold if hold is None else hold)
         _send(_key_event(vk, scan, True, self.use_vk))
 
     def press_char(self, ch: str) -> None:
@@ -95,8 +95,8 @@ class ScanCodeKeyboard:
     def press_enter(self) -> None:
         self._tap(VK_RETURN, SCAN_ENTER)
 
-    def press_backspace(self) -> None:
-        self._tap(VK_BACK, SCAN_BACKSPACE)
+    def press_backspace(self, hold: float | None = None) -> None:
+        self._tap(VK_BACK, SCAN_BACKSPACE, hold)
 
     def press_key(self, name: str) -> None:
         raise RuntimeError(f"press_key({name!r}) is not supported by this backend; use a single character")

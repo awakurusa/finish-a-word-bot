@@ -88,7 +88,7 @@ class RecordingKB:
     def press_char(self, c): self.events.append(("char", c))
     def press_key(self, k): self.events.append(("key", k))
     def press_enter(self): self.events.append(("enter",))
-    def press_backspace(self): self.events.append(("backspace",))
+    def press_backspace(self, hold=None): self.events.append(("backspace",))
 
 
 def make_typer(**kw):
@@ -264,7 +264,7 @@ def test_typer_pauses_after_erasing_before_typing(monkeypatch):
     assert t._kb.events == [("backspace",), ("sleep", 0.06), ("backspace",), ("sleep", 0.06),
                             ("sleep", 0.4), ("char", "i"), ("char", "c"), ("char", "k"),
                             ("enter",)]
-    assert "after erasing 2 letters" in r.message
+    assert "after 2 backspaces" in r.message
 
 
 def test_typer_no_pause_when_nothing_to_erase(monkeypatch):
@@ -273,3 +273,11 @@ def test_typer_no_pause_when_nothing_to_erase(monkeypatch):
     monkeypatch.setattr("finish_the_word.typer.time.sleep", lambda s: slept.append(s))
     t.type_word("ab")
     assert 0.4 not in slept
+
+
+def test_typer_backspace_uses_the_short_erase_hold():
+    t = make_typer(erase_hold=0.03)
+    holds = []
+    t._kb.press_backspace = lambda hold=None: holds.append(hold)
+    assert t.type_word("stick", skip=2, erase=4).ok
+    assert holds == [0.03] * 4
