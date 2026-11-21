@@ -189,3 +189,9 @@ def test_refuses_to_claim_success_when_roblox_is_elevated(monkeypatch):
 def test_uipi_check_is_false_off_windows():
     assert winutil.blocked_by_uipi("Roblox") is False
     assert winutil.is_admin() is False
+
+
+def test_diagnose_is_safe_off_windows(capsys):
+    from finish_the_word import diagnose
+    assert diagnose.run(Config()) == 0
+    assert "only works on Windows" in capsys.readouterr().out

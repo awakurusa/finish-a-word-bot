@@ -99,6 +99,8 @@ The tool now detects this situation and reports it in the Status line instead of
 
 ## If nothing gets typed in Roblox
 
+Run `.venv\\Scripts\\python -m finish_the_word --diagnose` (as Administrator if Roblox is) and send the printed report: it shows whether Roblox is elevated, whether Windows accepts the keys, and whether the Roblox window is found and focused.
+
 **Run the typing test first.** It tries every input method, each typing a different letter, so you can see which one your Roblox accepts:
 
 ```powershell

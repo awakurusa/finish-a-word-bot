@@ -28,6 +28,8 @@ def main(argv=None) -> int:
                     help="type test letters with every input method to find the one that works")
     ap.add_argument("--window", metavar="TITLE", help="window to type into for --test-keys (e.g. Notepad)")
     ap.add_argument("--backend", help="only test this typing backend")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="print a typing diagnostic report (Windows) to send for troubleshooting")
     ap.add_argument("--admin", action="store_true",
                     help="relaunch this program as Administrator (needed if Roblox runs as admin)")
     ap.add_argument("--dry-run", action="store_true", help="never press keys")
@@ -50,6 +52,11 @@ def main(argv=None) -> int:
         cfg.match_mode = args.mode
     if args.dry_run:
         cfg.dry_run = True
+
+    if args.diagnose:
+        from .diagnose import run as run_diagnose
+
+        return run_diagnose(cfg)
 
     if args.test_keys:
         from .typer import Typer
