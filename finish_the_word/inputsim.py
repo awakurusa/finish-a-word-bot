@@ -82,12 +82,17 @@ class ScanCodeKeyboard:
     def _tap(self, vk: int, scan: int) -> None:
         if scan == 0 and not self.use_vk:
             raise RuntimeError("No scan code for this key on your keyboard layout")
-        if not _send(_key_event(vk, scan, False, self.use_vk)):
+        if _send(_key_event(vk, scan, False, self.use_vk)) != 1:
             err = ctypes.GetLastError()
             raise RuntimeError(f"SendInput was blocked (error {err}). If Roblox runs as "
                                "Administrator, run this tool as Administrator too")
-        time.sleep(self.hold)
-        _send(_key_event(vk, scan, True, self.use_vk))
+        # Always send KEYUP, even if the hold sleep is interrupted.
+        try:
+            time.sleep(self.hold)
+        finally:
+            released = _send(_key_event(vk, scan, True, self.use_vk))
+            if released != 1 and _send(_key_event(vk, scan, True, self.use_vk)) != 1:
+                raise RuntimeError("SendInput could not release a key after two attempts")
 
     def press_char(self, ch: str) -> None:
         self._tap(*self._codes_for_char(ch))
