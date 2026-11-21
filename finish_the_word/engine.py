@@ -147,8 +147,9 @@ class Engine:
             # A failed injection is not a rejected word. Retry the SAME answer,
             # first removing only the characters confirmed as typed.
             self._emit(status="Typing failed; cleaning up and retrying…")
-            erase = self._pending_erase if cfg.clear_before_retry else 0
-            self._submit(text, now, erase=erase)
+            # Partial failed input is always cleaned, even if cleanup is disabled
+            # for fully submitted/rejected answers.
+            self._submit(text, now, erase=self._pending_erase)
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
@@ -178,10 +179,7 @@ class Engine:
             self._submitted_prompt, self._submitted_at = text, now + typing_time
         else:
             # A failed injection is not a rejected/invalid dictionary word.
-            self._pending_erase = (
-                max(0, int(getattr(self.typer, "last_typed_len", 0)))
-                if self.cfg.clear_before_retry else 0
-            )
+            self._pending_erase = max(0, int(getattr(self.typer, "last_typed_len", 0)))
             self._typing_failed = True
             self._submitted_prompt, self._submitted_at = text, now + typing_time
         self._emit(status=result.message)
