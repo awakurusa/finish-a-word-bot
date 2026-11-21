@@ -69,6 +69,8 @@ class Engine:
         self._submitted_at = 0.0
         self._attempted: set[str] = set()
         self._last_typed = ""
+        self._pending_erase = 0
+        self._typing_failed = False
 
     def _emit(self, **changes) -> None:
         for k, v in changes.items():
@@ -137,7 +139,16 @@ class Engine:
 
         if text != self._submitted_prompt:
             self._attempted = set()  # brand-new prompt
+            # A changed prompt means the game has moved on; don't backspace into it.
+            self._pending_erase = 0
+            self._typing_failed = False
             self._submit(text, now)
+        elif self._typing_failed and now - self._submitted_at >= max(cfg.poll_interval, 0.5):
+            # A failed injection is not a rejected word. Retry the SAME answer,
+            # first removing only the characters confirmed as typed.
+            self._emit(status="Typing failed; cleaning up and retrying…")
+            erase = self._pending_erase if cfg.clear_before_retry else 0
+            self._submit(text, now, erase=erase)
         elif cfg.retry_next_word and now - self._submitted_at >= cfg.retry_after:
             if cfg.auto_ban_rejected and self._last_typed:
                 self.db.ban(self._last_typed)   # prompt unchanged: game refused it
@@ -158,12 +169,21 @@ class Engine:
         result = self.typer.type_word(sol.word, skip=self._already_shown(sol), erase=erase)
         typing_time = time.monotonic() - t0
         if result.ok:
+            self._pending_erase = 0
+            self._typing_failed = False
             self._attempted.add(sol.word)
             self._last_typed = sol.word
             self.db.mark_used(sol.word)
             # time the game's reaction from when typing FINISHED, not when it began
             self._submitted_prompt, self._submitted_at = text, now + typing_time
-        # on failure leave the prompt un-submitted so the next poll retries
+        else:
+            # A failed injection is not a rejected/invalid dictionary word.
+            self._pending_erase = (
+                max(0, int(getattr(self.typer, "last_typed_len", 0)))
+                if self.cfg.clear_before_retry else 0
+            )
+            self._typing_failed = True
+            self._submitted_prompt, self._submitted_at = text, now + typing_time
         self._emit(status=result.message)
 
     def _already_shown(self, sol: Solution) -> int:
