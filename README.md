@@ -142,7 +142,7 @@ Created when you first save settings from the GUI. Key options:
 | `min_confidence` | `40` | OCR confidence (0–100) required before typing |
 | `stable_reads` | `2` | Identical consecutive reads required (rejects half-animated text) |
 | `match_mode` | `prefix` | See above |
-| `selection` | `hard_ending` | `hard_ending` (words ending in rare letters like z, x, q first; most common among equals), `reliable` (most common word), `longest`, `shortest`, `random` |
+| `selection` | `reliable` | `reliable` (most common word first), `hard_ending` (rare final letters first), `longest`, `shortest`, `random` |
 | `ending_priority` | `zxqjvkwfbygp` | Final letters ranked rarest-first for `hard_ending` |
 | `min_word_len` / `max_word_len` | `3` / `18` | Answer length limits |
 | `min_zipf` | `1.5` | Commonness floor (about 1 in 30M words); relaxed automatically if nothing matches |
